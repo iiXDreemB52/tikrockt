@@ -13,10 +13,41 @@
 
 <div class="starfield" aria-hidden="true"></div>
 
-<div class="conn-badge" id="conn-badge" title="حالة الاتصال بالبث المباشر">
-  <i class="conn-badge__dot"></i>
-  <span id="conn-text">—</span>
-</div>
+<!-- ══ الشريط العلوي ══ -->
+<header class="topbar">
+  <div class="topbar__side">
+    <button class="chip" id="btn-events" title="سجل الأحداث">📜 <span>الأحداث</span></button>
+    <button class="chip" id="btn-settings" title="الإعدادات">⚙️ <span>الإعدادات</span></button>
+  </div>
+
+  <div class="account">
+    <button class="account__pill" id="account-pill" title="اضغط لتغيير الحساب">
+      <span class="account__icon">🎬</span>
+      <span class="account__name" id="account-name">أضف حسابك</span>
+      <span class="account__edit">تغيير</span>
+    </button>
+
+    <form class="account__form is-hidden" id="account-form" autocomplete="off">
+      <span class="account__at">@</span>
+      <input class="account__input" id="account-input" type="text" placeholder="اسم حسابك في تيك توك" spellcheck="false">
+      <button class="account__save" type="submit">ربط</button>
+      <button class="account__cancel" type="button" id="account-cancel">إلغاء</button>
+    </form>
+  </div>
+
+  <div class="topbar__side topbar__side--end">
+    <div class="conn-badge" id="conn-badge" title="حالة الاتصال بالبث المباشر">
+      <i class="conn-badge__dot"></i>
+      <span id="conn-text">—</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══ تنبيه كلمة الدخول ══ -->
+<p class="join-hint" id="join-hint">
+  اكتب <b id="hint-keyword">بلعب</b> في الشات عشان يتسجل اسمك في القائمة
+  <span class="join-hint__closed is-hidden" id="hint-closed">· التسجيل مقفل الآن</span>
+</p>
 
 <!-- ══ الشاشة الرئيسية ══ -->
 <main class="stage" id="stage-main">
@@ -33,14 +64,29 @@
 
       <div class="counter">
         <span class="counter__num" id="count">٠</span>
-        <span class="counter__label">راكب على متن الصاروخ</span>
+        <div class="counter__stack">
+          <span class="counter__label">راكب على متن الصاروخ</span>
+          <span class="counter__cap" id="count-cap">الحد الأقصى ١٠٠</span>
+        </div>
       </div>
 
-      <button class="draw-btn" id="btn-draw">
-        <span class="draw-btn__flame" aria-hidden="true"></span>
-        <span class="draw-btn__text">🚀 إطلاق الصاروخ</span>
-        <span class="draw-btn__hint">اختَر الفائز الآن</span>
-      </button>
+      <div class="launch">
+        <button class="draw-btn draw-btn--gold" id="btn-draw">
+          <span class="draw-btn__flame" aria-hidden="true"></span>
+          <span class="draw-btn__text">🚀 ابدأ</span>
+          <span class="draw-btn__hint" id="draw-hint">عدّ تنازلي ٣٠ ثانية ثم يختار الفائز</span>
+        </button>
+
+        <div class="countdown is-hidden" id="countdown">
+          <div class="countdown__row">
+            <span class="countdown__num" id="countdown-num">٣٠</span>
+            <span class="countdown__unit">ثانية</span>
+            <button class="countdown__cancel" id="btn-cancel">إلغاء</button>
+          </div>
+          <div class="countdown__bar"><i id="countdown-fill"></i></div>
+          <p class="countdown__label">التسجيل مفتوح — اكتب <b id="countdown-keyword">بلعب</b></p>
+        </div>
+      </div>
     </header>
 
     <div class="tickets" id="tickets"></div>
@@ -48,7 +94,7 @@
     <div class="empty" id="empty">
       <div class="empty__rocket">🚀</div>
       <p class="empty__title">قاعدة الإطلاق فارغة</p>
-      <p class="empty__body">اطلب من المشاهدين كتابة <b id="empty-keyword">دخول</b> في الشات للصعود على متن الصاروخ. كل اسم يظهر هنا مرة واحدة فقط.</p>
+      <p class="empty__body">اطلب من المشاهدين كتابة <b id="empty-keyword">بلعب</b> في الشات للصعود على متن الصاروخ. كل اسم يظهر هنا مرة واحدة فقط.</p>
     </div>
   </section>
 </main>
@@ -82,6 +128,92 @@
     <p class="thread__wait" id="thread-wait">في انتظار أول إشارة من رائد الفضاء الفائز…</p>
   </div>
 </main>
+
+<!-- ══ لوحة الأحداث ══ -->
+<aside class="drawer" id="events-drawer" hidden>
+  <header class="drawer__head">
+    <h2 class="drawer__title">📜 سجل الأحداث</h2>
+    <div class="drawer__tools">
+      <a class="chip chip--green" id="btn-green" href="/green.html" target="_blank" rel="noopener">🟩 شاشة خضراء</a>
+      <button class="chip" id="btn-events-clear">مسح</button>
+      <button class="chip chip--x" id="btn-events-close" title="إغلاق">✕</button>
+    </div>
+  </header>
+  <div class="drawer__filters" id="events-filters">
+    <button class="tag is-on" data-filter="all">الكل</button>
+    <button class="tag" data-filter="join">انضمام</button>
+    <button class="tag" data-filter="winner">فائزون</button>
+    <button class="tag" data-filter="round">الجولات</button>
+    <button class="tag" data-filter="connection">الاتصال</button>
+  </div>
+  <div class="drawer__body" id="events-list"></div>
+</aside>
+
+<!-- ══ الإعدادات ══ -->
+<div class="modal" id="settings-modal" hidden>
+  <div class="modal__backdrop" id="settings-backdrop"></div>
+  <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <header class="modal__head">
+      <h2 class="modal__title" id="settings-title">⚙️ إعدادات السحب</h2>
+      <button class="chip chip--x" id="settings-close" title="إغلاق">✕</button>
+    </header>
+
+    <div class="modal__body">
+      <div class="field">
+        <label for="set-keyword">كلمة الدخول في الشات</label>
+        <input id="set-keyword" type="text" maxlength="40" spellcheck="false">
+        <small>اللي يكتبها المشاهد عشان يتسجل. الافتراضي: بلعب</small>
+      </div>
+
+      <div class="field">
+        <label for="set-match">طريقة المطابقة</label>
+        <select id="set-match">
+          <option value="contains">تكفي الكلمة داخل الرسالة</option>
+          <option value="exact">لازم الرسالة تكون الكلمة فقط</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="set-max">عدد المشاركين المسموح</label>
+        <input id="set-max" type="number" min="1" max="5000" step="1">
+        <small>يقفل التسجيل تلقائيًا عند الوصول لهذا العدد.</small>
+      </div>
+
+      <div class="field">
+        <label for="set-countdown">مدة العد التنازلي (ثانية)</label>
+        <input id="set-countdown" type="number" min="0" max="900" step="1">
+        <small>يظهر تحت زر «ابدأ». صفر = سحب فوري بدون عد.</small>
+      </div>
+
+      <div class="field field--wide">
+        <label class="switch"><input type="checkbox" id="set-autodraw"><span></span>اسحب الفائز تلقائيًا بعد نهاية العد</label>
+        <label class="switch"><input type="checkbox" id="set-roundonly"><span></span>اقبل التسجيل فقط أثناء العد التنازلي</label>
+        <label class="switch"><input type="checkbox" id="set-stopfull"><span></span>أنهِ العد فورًا عند اكتمال العدد</label>
+        <label class="switch"><input type="checkbox" id="set-exclude"><span></span>استبعد من فاز سابقًا من السحوبات الجاية</label>
+      </div>
+
+      <div class="field field--wide">
+        <label class="switch"><input type="checkbox" id="set-sound"><span></span>المؤثرات الصوتية</label>
+        <label for="set-volume">مستوى الصوت</label>
+        <input id="set-volume" type="range" min="0" max="1" step="0.05">
+      </div>
+
+      <div class="field field--wide danger-row">
+        <button class="btn btn--ghost" id="btn-clear-list">مسح قائمة المشاركين</button>
+        <button class="btn btn--ghost" id="btn-clear-history">مسح سجل الفائزين</button>
+        <button class="btn btn--ghost" id="btn-demo">إضافة ١٢ مشاركًا تجريبيًا</button>
+        <a class="btn btn--ghost" href="/api/participants.csv">تنزيل القائمة CSV</a>
+      </div>
+    </div>
+
+    <footer class="modal__foot">
+      <span class="modal__note" id="settings-note"></span>
+      <button class="btn btn--go" id="settings-save">حفظ الإعدادات</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
