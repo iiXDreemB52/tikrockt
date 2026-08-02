@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🚀 صاروخ الحظ · سحب البث المباشر</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="starfield" aria-hidden="true"></div>
+
+<div class="conn-badge" id="conn-badge" title="حالة الاتصال بالبث المباشر">
+  <i class="conn-badge__dot"></i>
+  <span id="conn-text">—</span>
+</div>
+
+<!-- ══ الشاشة الرئيسية ══ -->
+<main class="stage" id="stage-main">
+
+  <section class="wall">
+    <header class="wall__head">
+      <div class="brand">
+        <span class="brand__rocket">🚀</span>
+        <div>
+          <h1 class="brand__title">صاروخ <span>الحظ</span></h1>
+          <p class="brand__sub">منصّة سحب مباشر لركّاب البث</p>
+        </div>
+      </div>
+
+      <div class="counter">
+        <span class="counter__num" id="count">٠</span>
+        <span class="counter__label">راكب على متن الصاروخ</span>
+      </div>
+
+      <button class="draw-btn" id="btn-draw">
+        <span class="draw-btn__flame" aria-hidden="true"></span>
+        <span class="draw-btn__text">🚀 إطلاق الصاروخ</span>
+        <span class="draw-btn__hint">اختَر الفائز الآن</span>
+      </button>
+    </header>
+
+    <div class="tickets" id="tickets"></div>
+
+    <div class="empty" id="empty">
+      <div class="empty__rocket">🚀</div>
+      <p class="empty__title">قاعدة الإطلاق فارغة</p>
+      <p class="empty__body">اطلب من المشاهدين كتابة <b id="empty-keyword">دخول</b> في الشات للصعود على متن الصاروخ. كل اسم يظهر هنا مرة واحدة فقط.</p>
+    </div>
+  </section>
+</main>
+
+<!-- ══ شاشة الفائز ══ -->
+<main class="winner-stage" id="stage-winner" hidden>
+  <div class="stars-trail" id="confetti" aria-hidden="true"></div>
+  <div class="orbit-ring" aria-hidden="true"></div>
+
+  <div class="winner-card">
+    <p class="winner-eyebrow">🚀 وصل إلى المدار أولًا</p>
+    <div class="winner-id">
+      <div class="avatar avatar--xl" id="w-avatar"></div>
+      <div>
+        <h2 class="winner-name" id="w-name">—</h2>
+        <p class="winner-handle" id="w-handle"></p>
+      </div>
+    </div>
+    <div class="winner-actions">
+      <button class="btn btn--go" id="btn-redraw">🚀 إطلاق جديد</button>
+      <button class="btn btn--ghost" id="btn-back">العودة لقاعدة الإطلاق</button>
+    </div>
+  </div>
+
+  <div class="thread">
+    <header class="thread__head">
+      <span class="thread__title">📡 اتصال مباشر من القمرة</span>
+      <span class="thread__live"><i></i>يتابع</span>
+    </header>
+    <div class="thread__body" id="thread"></div>
+    <p class="thread__wait" id="thread-wait">في انتظار أول إشارة من رائد الفضاء الفائز…</p>
+  </div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
