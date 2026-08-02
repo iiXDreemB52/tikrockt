@@ -2,19 +2,16 @@
 
 require('dotenv').config();
 
-const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { randomInt } = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const { TikTokLiveConnection, WebcastEvent, ControlEvent } = require('tiktok-live-connector');
+const store = require('./store');
 
 const PORT = process.env.PORT || 3000;
 const SIGN_API_KEY = process.env.SIGN_API_KEY || undefined;
-
-const DATA_DIR = path.join(__dirname, 'data');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
 /* ══════════════════════════════════════════════════════════════
    الإعدادات الافتراضية.
@@ -67,22 +64,10 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
   };
 }
 
-function loadConfig() {
-  try {
-    const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
-    return sanitizeConfig(JSON.parse(raw));
-  } catch (_) {
-    return { ...DEFAULT_CONFIG, sound: { ...DEFAULT_CONFIG.sound } };
-  }
-}
-
 function saveConfig() {
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(state.config, null, 2), 'utf8');
-  } catch (err) {
+  store.saveConfig(state.config).catch((err) => {
     console.error('تعذّر حفظ الإعدادات:', err.message);
-  }
+  });
 }
 
 /* ---------------------------------------------------------------
@@ -90,7 +75,7 @@ function saveConfig() {
 --------------------------------------------------------------- */
 
 const state = {
-  config: loadConfig(),
+  config: { ...DEFAULT_CONFIG, sound: { ...DEFAULT_CONFIG.sound } },
   status: 'disconnected',       // disconnected | connecting | connected | error
   statusDetail: 'غير متصل',
   participants: new Map(),      // id -> participant
@@ -542,6 +527,7 @@ function pickWinner() {
 
   state.history.unshift({ ...winner, wonAt: Date.now() });
   if (state.history.length > 50) state.history.pop();
+  store.saveWinner(winner).catch((err) => console.error('تعذّر حفظ الفائز:', err.message));
 
   if (state.config.excludeWinners) {
     state.excluded.add(winner.id);
@@ -641,6 +627,7 @@ io.on('connection', (socket) => {
   socket.on('history:clear', () => {
     state.history = [];
     state.excluded.clear();
+    store.clearWinners().catch((err) => console.error('تعذّر مسح السجل:', err.message));
     io.emit('history:clear');
     pushEvent('system', 'تم مسح سجل الفائزين وإعادة تأهيل الجميع.');
   });
@@ -682,14 +669,36 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`\n  🚀 صاروخ الحظ يعمل على  →  http://localhost:${PORT}`);
-  console.log(`  🟩 الشاشة الخضراء       →  http://localhost:${PORT}/green.html\n`);
+/* ---------------------------------------------------------------
+   الإقلاع
+--------------------------------------------------------------- */
 
-  if (state.config.username) {
-    startConnection(state.config.username);
-  } else {
-    state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
-    console.log('  ℹ️  ما فيه حساب محفوظ — اكتب اسم حسابك من الشريط العلوي في الموقع.\n');
-  }
+async function boot() {
+  await store.init();
+
+  const saved = await store.loadConfig();
+  if (saved) state.config = sanitizeConfig(saved);
+
+  // نرجّع سجل الفائزين حتى يظل الاستبعاد شغّالًا بعد إعادة التشغيل
+  const winners = await store.loadWinners(50);
+  state.history = winners;
+  winners.forEach((w) => state.excluded.add(w.id));
+
+  server.listen(PORT, () => {
+    console.log(`\n  🚀 صاروخ الحظ يعمل على  →  http://localhost:${PORT}`);
+    console.log(`  🟩 الشاشة الخضراء       →  http://localhost:${PORT}/green.html`);
+    console.log(`  🏆 فائزون محفوظون: ${winners.length}\n`);
+
+    if (state.config.username) {
+      startConnection(state.config.username);
+    } else {
+      state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
+      console.log('  ℹ️  ما فيه حساب محفوظ — اكتب اسم حسابك من الشريط العلوي في الموقع.\n');
+    }
+  });
+}
+
+boot().catch((err) => {
+  console.error('فشل الإقلاع:', err);
+  process.exit(1);
 });
