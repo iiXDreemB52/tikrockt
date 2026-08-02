@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tiktok-live-draw
+    runtime: node
+    plan: free              # غيّرها إلى starter إذا تبي الخدمة ما تنام
+    region: frankfurt       # الأقرب للسعودية
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: SIGN_API_KEY   # مفتاح خدمة التوقيع — تعبّيه من لوحة Render
+        sync: false
+      - key: DATABASE_URL   # رابط Neon — بدونه الإعدادات تضيع مع كل إعادة تشغيل
+        sync: false
