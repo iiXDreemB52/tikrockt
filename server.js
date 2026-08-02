@@ -5,7 +5,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const crypto = require('crypto');
+const { randomInt } = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const { TikTokLiveConnection, WebcastEvent, ControlEvent } = require('tiktok-live-connector');
@@ -13,26 +13,101 @@ const { TikTokLiveConnection, WebcastEvent, ControlEvent } = require('tiktok-liv
 const PORT = process.env.PORT || 3000;
 const SIGN_API_KEY = process.env.SIGN_API_KEY || undefined;
 
+const DATA_DIR = path.join(__dirname, 'data');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+
 /* ══════════════════════════════════════════════════════════════
-   ★★★  إعداداتك — عدّل هنا فقط  ★★★
-
-   ضع حسابك (أو حساباتك) بين علامتَي التنصيص، وكل حساب في سطر.
-   الحساب الأول هو المربوط تلقائيًا عند فتح الموقع،
-   والباقي يظهرون كأزرار سريعة في لوحة التحكم تضغط عليها للتبديل.
-
-   بدون علامة @ — فقط اسم المستخدم.
+   الإعدادات الافتراضية.
+   ما عاد فيه حساب مكتوب داخل الكود — الحساب يتغيّر من الشريط
+   العلوي في الموقع ويُحفظ في data/config.json.
    ══════════════════════════════════════════════════════════════ */
 
-const ACCOUNTS = [
-  'xxdreemb52',
-  // 'حساب_ثاني',
-  // 'حساب_ثالث',
-];
+const DEFAULT_CONFIG = {
+  username: '',              // حساب تيك توك المربوط (بدون @)
+  keyword: 'بلعب',           // الكلمة اللي يكتبها المشاهد بالشات
+  matchMode: 'contains',     // exact = الرسالة كلها الكلمة | contains = تكفي الكلمة داخل الرسالة
+  excludeWinners: true,      // استبعاد من فاز سابقًا
+  maxParticipants: 100,      // الحد الأقصى للمشاركين المسموح دخولهم
+  countdownSeconds: 30,      // مدة العد التنازلي تحت زر «ابدأ»
+  autoDraw: true,            // السحب تلقائيًا عند انتهاء العد
+  joinDuringRoundOnly: false,// true = التسجيل يُقبل فقط أثناء العد التنازلي
+  stopWhenFull: true,        // إنهاء العد فورًا عند اكتمال العدد
+  sound: { enabled: true, volume: 0.6 },
+};
 
-// كلمة الدخول الافتراضية (تقدر تغيّرها من اللوحة أيضًا)
-const DEFAULT_KEYWORD = 'دخول';
+const MAX_EVENTS = 400;
 
-/* ══════════════ نهاية الإعدادات ══════════════ */
+/* ---------------------------------------------------------------
+   حفظ/قراءة الإعدادات من القرص
+--------------------------------------------------------------- */
+
+function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
+  const num = (value, fallback, min, max) => {
+    const n = Number.parseInt(value, 10);
+    if (Number.isNaN(n)) return fallback;
+    return Math.min(Math.max(n, min), max);
+  };
+
+  const soundInput = input.sound || {};
+  return {
+    username: String(input.username ?? base.username).trim().replace(/^@/, '').slice(0, 40),
+    keyword: (String(input.keyword ?? base.keyword).trim() || base.keyword).slice(0, 40),
+    matchMode: input.matchMode === 'exact' || input.matchMode === 'contains' ? input.matchMode : base.matchMode,
+    excludeWinners: typeof input.excludeWinners === 'boolean' ? input.excludeWinners : base.excludeWinners,
+    maxParticipants: num(input.maxParticipants, base.maxParticipants, 1, 5000),
+    countdownSeconds: num(input.countdownSeconds, base.countdownSeconds, 0, 900),
+    autoDraw: typeof input.autoDraw === 'boolean' ? input.autoDraw : base.autoDraw,
+    joinDuringRoundOnly:
+      typeof input.joinDuringRoundOnly === 'boolean' ? input.joinDuringRoundOnly : base.joinDuringRoundOnly,
+    stopWhenFull: typeof input.stopWhenFull === 'boolean' ? input.stopWhenFull : base.stopWhenFull,
+    sound: {
+      enabled: typeof soundInput.enabled === 'boolean' ? soundInput.enabled : base.sound.enabled,
+      volume: Math.min(Math.max(Number(soundInput.volume ?? base.sound.volume) || 0, 0), 1),
+    },
+  };
+}
+
+function loadConfig() {
+  try {
+    const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
+    return sanitizeConfig(JSON.parse(raw));
+  } catch (_) {
+    return { ...DEFAULT_CONFIG, sound: { ...DEFAULT_CONFIG.sound } };
+  }
+}
+
+function saveConfig() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(state.config, null, 2), 'utf8');
+  } catch (err) {
+    console.error('تعذّر حفظ الإعدادات:', err.message);
+  }
+}
+
+/* ---------------------------------------------------------------
+   الحالة المركزية — كل الشاشات المفتوحة تشترك في نفس البيانات
+--------------------------------------------------------------- */
+
+const state = {
+  config: loadConfig(),
+  status: 'disconnected',       // disconnected | connecting | connected | error
+  statusDetail: 'غير متصل',
+  participants: new Map(),      // id -> participant
+  winner: null,
+  winnerMessages: [],
+  history: [],
+  excluded: new Set(),
+  events: [],
+  round: { active: false, total: 0, remaining: 0 },
+};
+
+let connection = null;
+let autoReconnect = true;
+let reconnectTimer = null;
+let roundTimer = null;
+let reconnectDelay = 5000;
+const MAX_RECONNECT_DELAY = 60000;
 
 const app = express();
 const server = http.createServer(app);
@@ -42,41 +117,44 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 /* ---------------------------------------------------------------
-   الحالة المركزية — كل النوافذ المفتوحة تشترك في نفس البيانات
+   سجل الأحداث — يُبثّ للموقع وللشاشة الخضراء
 --------------------------------------------------------------- */
 
-const state = {
-  status: 'disconnected',      // disconnected | connecting | connected | error
-  username: ACCOUNTS[0] || '',  // الحساب المربوط تلقائيًا
-  statusDetail: 'غير متصل',
-  keyword: DEFAULT_KEYWORD,
-  matchMode: 'exact',          // exact | contains
-  excludeWinners: true,
-  participants: new Map(),     // userId -> participant
-  winner: null,
-  winnerMessages: [],
-  history: [],
-  excluded: new Set(),         // معرفات من فازوا سابقًا
-};
+let lastNoise = { text: '', at: 0 };
 
-let connection = null;
-let autoReconnect = true;   // نحاول نعاود الاتصال تلقائيًا لو انقطع أو فشل
-let reconnectTimer = null;
-let reconnectDelay = 5000;  // يتضاعف عند الفشل المتكرر (حماية من تجاوز حد التوقيع)
-const MAX_RECONNECT_DELAY = 60000;
+function pushEvent(type, text, extra = {}) {
+  // منع تكرار نفس رسالة الخطأ عشرات المرات في السجل
+  if (type === 'error' || type === 'connection') {
+    if (text === lastNoise.text && Date.now() - lastNoise.at < 8000) return null;
+    lastNoise = { text, at: Date.now() };
+  }
+
+  const event = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,                 // join | winner | round | connection | system | error
+    text,
+    at: Date.now(),
+    ...extra,
+  };
+  state.events.push(event);
+  if (state.events.length > MAX_EVENTS) state.events.shift();
+  io.emit('event', event);
+  console.log(`[${type}] ${text}`);
+  return event;
+}
 
 /* ---------------------------------------------------------------
    تطبيع النص العربي حتى تُقبل كل صيغ الكلمة المفتاحية
-   "دخول" = "دُخول" = "دخــول" = " دخول! "
+   "بلعب" = "بلعــب" = "بِلعب" = " بلعب!! "
 --------------------------------------------------------------- */
 
 function normalizeArabic(input) {
   return String(input || '')
-    .replace(/[\u064B-\u0652\u0670\u0640]/g, '')   // تشكيل + تطويل
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, '')      // تشكيل + تطويل
     .replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627') // آ أ إ -> ا
-    .replace(/\u0629/g, '\u0647')                   // ة -> ه
-    .replace(/\u0649/g, '\u064A')                   // ى -> ي
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')              // إزالة الرموز والإيموجي
+    .replace(/\u0629/g, '\u0647')                     // ة -> ه
+    .replace(/\u0649/g, '\u064A')                     // ى -> ي
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')                // إزالة الرموز والإيموجي
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -84,9 +162,9 @@ function normalizeArabic(input) {
 
 function isJoinMessage(content) {
   const text = normalizeArabic(content);
-  const key = normalizeArabic(state.keyword);
-  if (!key) return false;
-  if (state.matchMode === 'contains') {
+  const key = normalizeArabic(state.config.keyword);
+  if (!key || !text) return false;
+  if (state.config.matchMode === 'contains') {
     return text.split(' ').includes(key) || text.includes(key);
   }
   return text === key;
@@ -100,15 +178,14 @@ function snapshot() {
   return {
     status: state.status,
     statusDetail: state.statusDetail,
-    username: state.username,
-    accounts: ACCOUNTS,
-    keyword: state.keyword,
-    matchMode: state.matchMode,
-    excludeWinners: state.excludeWinners,
+    config: state.config,
     participants: [...state.participants.values()],
     winner: state.winner,
     winnerMessages: state.winnerMessages,
     history: state.history,
+    events: state.events.slice(-120),
+    round: state.round,
+    joinOpen: isJoinOpen(),
   };
 }
 
@@ -116,20 +193,17 @@ function pushStatus() {
   io.emit('status', {
     status: state.status,
     statusDetail: state.statusDetail,
-    username: state.username,
+    username: state.config.username,
   });
 }
 
-function log(level, message) {
-  io.emit('log', { level, message, at: Date.now() });
-  const tag = { info: '·', ok: '✓', warn: '!', error: '×' }[level] || '·';
-  console.log(`${tag} ${message}`);
+function pushSettings() {
+  io.emit('settings', state.config);
 }
 
 /* ---------------------------------------------------------------
    استخراج بيانات المستخدم من حدث الشات
 --------------------------------------------------------------- */
-
 
 function readUser(user) {
   if (!user) return null;
@@ -171,18 +245,21 @@ function getChatText(event) {
 
 async function startConnection(rawUsername) {
   if (state.status === 'connecting' || state.status === 'connected') {
-    log('warn', 'الاتصال شغّال بالفعل. أوقفه أولًا قبل تشغيل بث آخر.');
+    pushEvent('system', 'الاتصال شغّال بالفعل.');
     return;
   }
 
-  const username = String(rawUsername || state.username || ACCOUNTS[0] || '').trim().replace(/^@/, '');
+  const username = String(rawUsername || state.config.username || '').trim().replace(/^@/, '');
   if (!username) {
-    log('error', 'اكتب اسم مستخدم تيك توك أولًا أو اضبط الحساب في ACCOUNTS.');
+    state.status = 'disconnected';
+    state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
+    pushStatus();
+    pushEvent('system', 'ما فيه حساب مربوط. اكتب اسم حسابك في أعلى الصفحة.');
     return;
   }
 
   autoReconnect = true;
-  state.username = username;
+  state.config.username = username;
   state.status = 'connecting';
   state.statusDetail = 'جارٍ الاتصال…';
   pushStatus();
@@ -198,7 +275,7 @@ async function startConnection(rawUsername) {
 
   connection.on(WebcastEvent.STREAM_END, () => {
     state.statusDetail = 'انتهى البث';
-    log('warn', 'انتهى البث المباشر.');
+    pushEvent('connection', 'انتهى البث المباشر.');
     teardown('disconnected');
     scheduleReconnect(username);
   });
@@ -206,13 +283,13 @@ async function startConnection(rawUsername) {
   connection.on(ControlEvent.DISCONNECTED, () => {
     if (state.status === 'disconnected') return;
     state.statusDetail = 'انقطع الاتصال';
-    log('warn', 'انقطع الاتصال بالبث.');
+    pushEvent('connection', 'انقطع الاتصال بالبث.');
     teardown('disconnected');
     scheduleReconnect(username);
   });
 
   connection.on(ControlEvent.ERROR, (err) => {
-    log('error', `خطأ في الاتصال: ${err?.message || err}`);
+    pushEvent('error', `خطأ في الاتصال: ${errorText(err)}`);
   });
 
   try {
@@ -220,28 +297,25 @@ async function startConnection(rawUsername) {
     state.status = 'connected';
     state.statusDetail = `متصل بـ @${username}`;
     pushStatus();
-    log('ok', `تم الاتصال ببث @${username}. الكلمة المفتاحية: «${state.keyword}»`);
-    reconnectDelay = 5000; // نجح الاتصال، نصفّر مدة الانتظار القادمة
+    pushEvent('connection', `تم الاتصال ببث @${username} · كلمة الدخول «${state.config.keyword}»`);
+    reconnectDelay = 5000;
   } catch (err) {
     state.status = 'error';
     state.statusDetail = 'فشل الاتصال';
     pushStatus();
-    log('error', describeConnectError(err, username));
+    pushEvent('error', describeConnectError(err, username));
     connection = null;
     scheduleReconnect(username);
   }
 }
-
-/* ---------------------------------------------------------------
-   إعادة المحاولة تلقائيًا (بمهلة متصاعدة) بدل انتظار ضغطة يدوية
---------------------------------------------------------------- */
 
 function scheduleReconnect(username) {
   if (!autoReconnect || !username) return;
   clearTimeout(reconnectTimer);
   const delay = reconnectDelay;
   reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
-  log('info', `سأحاول الاتصال بـ @${username} مرة أخرى خلال ${Math.round(delay / 1000)} ثانية…`);
+  state.statusDetail = `إعادة المحاولة خلال ${Math.round(delay / 1000)} ثانية`;
+  pushStatus();
   reconnectTimer = setTimeout(() => {
     if (state.status === 'disconnected' || state.status === 'error') {
       startConnection(username);
@@ -249,46 +323,45 @@ function scheduleReconnect(username) {
   }, delay);
 }
 
+function errorText(err) {
+  if (!err) return 'خطأ غير معروف';
+  if (typeof err === 'string') return err;
+  const raw = err.message || err.exception?.message || err.error?.message || err.reason;
+  if (raw) return String(raw);
+  try {
+    return JSON.stringify(err).slice(0, 200);
+  } catch (_) {
+    return 'خطأ غير معروف';
+  }
+}
+
 function describeConnectError(err, username) {
-  const msg = String(err?.message || err || '');
-  if (/not.*live|offline|LIVE has ended|user_not_found/i.test(msg)) {
+  const msg = errorText(err);
+  if (/not.*live|offline|LIVE has ended|user_not_found|room.?id|Failed to retrieve/i.test(msg)) {
     return `تعذّر الاتصال: يبدو أن @${username} ليس على الهواء الآن، أو الاسم غير صحيح.`;
   }
   if (/sign|rate.?limit|429|euler/i.test(msg)) {
-    return 'تعذّر الاتصال: تجاوزت حد خدمة التوقيع المجانية. انتظر دقيقة وأعد المحاولة، أو أضف SIGN_API_KEY في ملف .env';
+    return 'تعذّر الاتصال: تجاوزت حد خدمة التوقيع. انتظر دقيقة، أو تأكد من SIGN_API_KEY في ملف .env';
   }
   return `تعذّر الاتصال: ${msg}`;
 }
 
-/* ---------------------------------------------------------------
-   التحقق من الحساب قبل الاتصال — يوضّح سبب فشل الربط بدقة
---------------------------------------------------------------- */
-
 async function checkAccount(rawUsername) {
   const username = String(rawUsername || '').trim().replace(/^@/, '');
   if (!username) {
-    log('error', 'اكتب اسم المستخدم أولًا.');
+    pushEvent('error', 'اكتب اسم المستخدم أولًا.');
     return;
   }
-
-  log('info', `جارٍ التحقق من @${username} …`);
+  pushEvent('system', `جارٍ التحقق من @${username} …`);
   try {
     const probe = new TikTokLiveConnection(username, { signApiKey: SIGN_API_KEY });
     const live = await probe.fetchIsLive();
-    if (live) {
-      log('ok', `@${username} على الهواء الآن. اضغط «تشغيل الاتصال».`);
-    } else {
-      log('warn', `الاسم @${username} صحيح، لكن الحساب ليس على الهواء حاليًا.`);
-    }
+    pushEvent(
+      'system',
+      live ? `@${username} على الهواء الآن.` : `الاسم @${username} صحيح، لكن الحساب مو على الهواء حاليًا.`
+    );
   } catch (err) {
-    const msg = String(err?.message || err || '');
-    if (/sign|rate.?limit|429|euler/i.test(msg)) {
-      log('error', 'تعذّر التحقق: تجاوزت حد خدمة التوقيع المجانية. انتظر دقيقة وأعد المحاولة.');
-    } else if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|fetch failed|network/i.test(msg)) {
-      log('error', 'تعذّر التحقق: لا يوجد اتصال بالإنترنت من الخادم.');
-    } else {
-      log('warn', `تعذّر قراءة حالة @${username}. الأسباب المحتملة: الاسم مكتوب خطأ، أو الحساب ليس على الهواء، أو تيك توك يحجب الاتصال من هذا الجهاز.`);
-    }
+    pushEvent('error', describeConnectError(err, username));
   }
 }
 
@@ -301,11 +374,11 @@ function teardown(nextStatus) {
   pushStatus();
 }
 
-function stopConnection() {
-  autoReconnect = false;       // إيقاف يدوي = لا نعاود المحاولة تلقائيًا
+function stopConnection(silent = false) {
+  autoReconnect = false;
   clearTimeout(reconnectTimer);
+  reconnectDelay = 5000;
   if (!connection) {
-    log('info', 'لا يوجد اتصال قائم.');
     state.status = 'disconnected';
     state.statusDetail = 'غير متصل';
     pushStatus();
@@ -313,13 +386,43 @@ function stopConnection() {
   }
   state.statusDetail = 'غير متصل';
   teardown('disconnected');
-  log('info', 'تم إيقاف الاتصال.');
+  if (!silent) pushEvent('connection', 'تم إيقاف الاتصال.');
 }
 
+/* ---------------------------------------------------------------
+   تغيير حساب تيك توك من الواجهة
+--------------------------------------------------------------- */
+
+function setAccount(rawUsername) {
+  const username = String(rawUsername || '').trim().replace(/^@/, '').slice(0, 40);
+  if (!username) {
+    pushEvent('error', 'اسم الحساب فاضي.');
+    return;
+  }
+  if (username === state.config.username && state.status === 'connected') {
+    pushEvent('system', `أنت متصل أصلًا بـ @${username}.`);
+    return;
+  }
+
+  stopConnection(true);
+  state.config.username = username;
+  saveConfig();
+  pushSettings();
+  pushEvent('system', `تم تغيير الحساب إلى @${username}.`);
+  startConnection(username);
+}
 
 /* ---------------------------------------------------------------
    معالجة كل رسالة شات
 --------------------------------------------------------------- */
+
+function isJoinOpen() {
+  if (state.config.joinDuringRoundOnly && !state.round.active) return false;
+  if (state.participants.size >= state.config.maxParticipants) return false;
+  return true;
+}
+
+let fullNotified = false;
 
 function onChat(event) {
   const user = readUser(event?.user);
@@ -328,15 +431,31 @@ function onChat(event) {
 
   // رسائل الفائز الحالي تُبثّ إلى شاشة المتابعة
   if (state.winner && state.winner.id === user.id) {
-    const message = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, text: content, at: Date.now() };
+    const message = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: content,
+      at: Date.now(),
+    };
     state.winnerMessages.push(message);
     if (state.winnerMessages.length > 300) state.winnerMessages.shift();
     io.emit('winner:message', message);
   }
 
   if (!isJoinMessage(content)) return;
-  if (state.participants.has(user.id)) return;                   // منع التكرار
-  if (state.excludeWinners && state.excluded.has(user.id)) return; // فاز سابقًا
+  if (state.participants.has(user.id)) return;
+  if (state.config.excludeWinners && state.excluded.has(user.id)) return;
+
+  if (state.config.joinDuringRoundOnly && !state.round.active) return;
+
+  if (state.participants.size >= state.config.maxParticipants) {
+    if (!fullNotified) {
+      fullNotified = true;
+      pushEvent('system', `اكتمل العدد (${state.config.maxParticipants}) — التسجيل مقفل.`);
+      io.emit('join:closed', { reason: 'full' });
+      if (state.round.active && state.config.stopWhenFull) endRound(true);
+    }
+    return;
+  }
 
   const participant = {
     ...user,
@@ -345,6 +464,61 @@ function onChat(event) {
   };
   state.participants.set(user.id, participant);
   io.emit('participant:add', participant);
+  pushEvent('join', `${participant.name} انضم للقائمة`, {
+    handle: participant.handle,
+    avatar: participant.avatar,
+    order: participant.order,
+  });
+
+  if (state.participants.size >= state.config.maxParticipants) {
+    fullNotified = true;
+    pushEvent('system', `اكتمل العدد (${state.config.maxParticipants}) — التسجيل مقفل.`);
+    io.emit('join:closed', { reason: 'full' });
+    if (state.round.active && state.config.stopWhenFull) endRound(true);
+  }
+}
+
+/* ---------------------------------------------------------------
+   الجولة والعد التنازلي
+--------------------------------------------------------------- */
+
+function startRound() {
+  if (state.round.active) return;
+
+  const total = state.config.countdownSeconds;
+  if (total <= 0) {
+    pickWinner();
+    return;
+  }
+
+  state.round = { active: true, total, remaining: total };
+  io.emit('round:start', { ...state.round });
+  pushEvent('round', `بدأ العد التنازلي · ${total} ثانية والتسجيل مفتوح`);
+
+  clearInterval(roundTimer);
+  roundTimer = setInterval(() => {
+    state.round.remaining -= 1;
+    if (state.round.remaining <= 0) {
+      endRound(true);
+      return;
+    }
+    io.emit('round:tick', { ...state.round });
+  }, 1000);
+}
+
+function endRound(draw) {
+  clearInterval(roundTimer);
+  roundTimer = null;
+  if (!state.round.active) return;
+  state.round = { active: false, total: state.round.total, remaining: 0 };
+  io.emit('round:end', { drew: Boolean(draw) });
+
+  if (draw && state.config.autoDraw) {
+    pushEvent('round', 'انتهى العد التنازلي · جارٍ اختيار الفائز');
+    pickWinner();
+  } else {
+    pushEvent('round', draw ? 'انتهى العد التنازلي' : 'تم إلغاء العد التنازلي');
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -353,36 +527,36 @@ function onChat(event) {
 
 function pickWinner() {
   const pool = [...state.participants.values()].filter(
-    (p) => !(state.excludeWinners && state.excluded.has(p.id))
+    (p) => !(state.config.excludeWinners && state.excluded.has(p.id))
   );
 
   if (pool.length === 0) {
-    log('warn', 'لا يوجد مشاركون مؤهلون للسحب.');
+    pushEvent('system', 'ما فيه مشاركين مؤهلين للسحب.');
     io.emit('draw:empty');
     return;
   }
 
-  const winner = pool[randomIndex(pool.length)];
+  const winner = pool[randomInt(0, pool.length)];
   state.winner = winner;
   state.winnerMessages = [];
 
-  const entry = { ...winner, wonAt: Date.now() };
-  state.history.unshift(entry);
+  state.history.unshift({ ...winner, wonAt: Date.now() });
   if (state.history.length > 50) state.history.pop();
 
-  if (state.excludeWinners) {
+  if (state.config.excludeWinners) {
     state.excluded.add(winner.id);
     state.participants.delete(winner.id);
   }
 
-  io.emit('winner', { winner, history: state.history, participants: [...state.participants.values()] });
-  log('ok', `الفائز: ${winner.name}${winner.handle ? ` (@${winner.handle})` : ''}`);
-}
-
-// اختيار عشوائي غير منحاز باستخدام مولّد التشفير
-function randomIndex(length) {
-  const { randomInt } = require('crypto');
-  return randomInt(0, length);
+  io.emit('winner', {
+    winner,
+    history: state.history,
+    participants: [...state.participants.values()],
+  });
+  pushEvent('winner', `الفائز: ${winner.name}${winner.handle ? ` (@${winner.handle})` : ''}`, {
+    handle: winner.handle,
+    avatar: winner.avatar,
+  });
 }
 
 function backToList() {
@@ -393,8 +567,9 @@ function backToList() {
 
 function clearParticipants() {
   state.participants.clear();
+  fullNotified = false;
   io.emit('participants:clear');
-  log('info', 'تم مسح قائمة المشاركين.');
+  pushEvent('system', 'تم مسح قائمة المشاركين.');
 }
 
 /* ---------------------------------------------------------------
@@ -415,57 +590,74 @@ app.get('/api/participants.csv', (req, res) => {
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="participants.csv"');
-  res.send('\uFEFF' + csv); // BOM حتى تظهر العربية صحيحة في Excel
+  res.send('\uFEFF' + csv);
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: state.status,
+    username: state.config.username,
+    participants: state.participants.size,
+    round: state.round,
+  });
 });
 
 /* ---------------------------------------------------------------
    قناة الوقت الفعلي
 --------------------------------------------------------------- */
 
-// السماح بكل اتصالات WebSocket بدون مصادقة
-
 io.on('connection', (socket) => {
   socket.emit('state', snapshot());
 
-  socket.on('start', (payload) => startConnection(payload?.username));
-  socket.on('check', (payload) => checkAccount(payload?.username));
+  socket.on('account:set', (payload = {}) => setAccount(payload.username));
+  socket.on('account:check', (payload = {}) => checkAccount(payload.username || state.config.username));
+  socket.on('connection:retry', () => {
+    stopConnection(true);
+    startConnection(state.config.username);
+  });
   socket.on('stop', () => stopConnection());
-  socket.on('clear', () => clearParticipants());
-  socket.on('draw', () => pickWinner());
-  socket.on('back', () => backToList());
 
-  socket.on('settings', (payload = {}) => {
-    if (typeof payload.keyword === 'string' && payload.keyword.trim()) {
-      state.keyword = payload.keyword.trim().slice(0, 40);
-      log('info', `تم تغيير كلمة الدخول إلى «${state.keyword}»`);
-    }
-    if (payload.matchMode === 'exact' || payload.matchMode === 'contains') {
-      state.matchMode = payload.matchMode;
-    }
-    if (typeof payload.excludeWinners === 'boolean') {
-      state.excludeWinners = payload.excludeWinners;
-    }
-    io.emit('settings', {
-      keyword: state.keyword,
-      matchMode: state.matchMode,
-      excludeWinners: state.excludeWinners,
-    });
+  socket.on('round:start', () => startRound());
+  socket.on('round:cancel', () => endRound(false));
+  socket.on('draw', () => {
+    if (state.round.active) endRound(false);
+    pickWinner();
+  });
+  socket.on('back', () => backToList());
+  socket.on('clear', () => clearParticipants());
+
+  socket.on('settings:set', (payload = {}) => {
+    const next = sanitizeConfig({ ...state.config, ...payload, sound: { ...state.config.sound, ...(payload.sound || {}) } }, state.config);
+    const keywordChanged = next.keyword !== state.config.keyword;
+    next.username = state.config.username; // الحساب يتغيّر من زره الخاص فقط
+    state.config = next;
+    saveConfig();
+    pushSettings();
+    if (keywordChanged) pushEvent('system', `كلمة الدخول صارت «${state.config.keyword}»`);
+    else pushEvent('system', 'تم حفظ الإعدادات.');
+    if (state.participants.size < state.config.maxParticipants) fullNotified = false;
   });
 
   socket.on('history:clear', () => {
     state.history = [];
     state.excluded.clear();
     io.emit('history:clear');
-    log('info', 'تم مسح سجل الفائزين وإعادة تأهيل الجميع.');
+    pushEvent('system', 'تم مسح سجل الفائزين وإعادة تأهيل الجميع.');
   });
 
-  if (!connection && ACCOUNTS[0]) {
-    startConnection(ACCOUNTS[0]);
-  }
+  socket.on('events:clear', () => {
+    state.events = [];
+    io.emit('events:clear');
+  });
 
-  // وضع التجربة: يولّد مشاركين وهميين لاختبار الواجهة بدون بث حقيقي
+  // وضع التجربة: مشاركون وهميون لاختبار الواجهة بدون بث حقيقي
   socket.on('demo', (payload = {}) => {
-    const count = Math.min(Math.max(parseInt(payload.count, 10) || 12, 1), 60);
+    const room = Math.max(state.config.maxParticipants - state.participants.size, 0);
+    const count = Math.min(Math.max(parseInt(payload.count, 10) || 12, 1), Math.min(60, room));
+    if (count === 0) {
+      pushEvent('system', 'القائمة ممتلئة — ما قدرت أضيف مشاركين تجريبيين.');
+      return;
+    }
     const names = ['أحمد', 'سارة', 'خالد', 'نورة', 'يوسف', 'ليان', 'عبدالله', 'جنى', 'محمد', 'رهف', 'سلطان', 'دانة', 'فهد', 'مريم', 'تركي', 'شهد'];
     for (let i = 0; i < count; i += 1) {
       const id = `demo-${Date.now()}-${i}`;
@@ -479,20 +671,25 @@ io.on('connection', (socket) => {
       };
       state.participants.set(id, participant);
       io.emit('participant:add', participant);
+      pushEvent('join', `${participant.name} انضم للقائمة (تجريبي)`, { handle: participant.handle });
     }
-    log('info', `تمت إضافة ${count} مشاركًا تجريبيًا.`);
+    if (state.participants.size >= state.config.maxParticipants) {
+      fullNotified = true;
+      pushEvent('system', `اكتمل العدد (${state.config.maxParticipants}) — التسجيل مقفل.`);
+      io.emit('join:closed', { reason: 'full' });
+      if (state.round.active && state.config.stopWhenFull) endRound(true);
+    }
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  سحب تيك توك يعمل على  →  http://localhost:${PORT}\n`);
+  console.log(`\n  🚀 صاروخ الحظ يعمل على  →  http://localhost:${PORT}`);
+  console.log(`  🟩 الشاشة الخضراء       →  http://localhost:${PORT}/green.html\n`);
 
-  // ★ الإصلاح الأساسي: الكود القديم كان يعرّف الحساب الأول كـ"مربوط تلقائيًا"
-  // لكنه لا يستدعي startConnection أبدًا إلا لو ضغطت زر في لوحة تحكم غير موجودة
-  // أصلًا في public/. لذلك لم تتصل السيرفر أبدًا ببث @xxdreemb52، وكل كتابة
-  // لكلمة «دخول» في الشات كانت تذهب لبث ما هو أصلًا غير مراقَب.
-  // الآن: نتصل تلقائيًا بالحساب الأول من ACCOUNTS فور تشغيل السيرفر.
-  if (ACCOUNTS[0]) {
-    startConnection(ACCOUNTS[0]);
+  if (state.config.username) {
+    startConnection(state.config.username);
+  } else {
+    state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
+    console.log('  ℹ️  ما فيه حساب محفوظ — اكتب اسم حسابك من الشريط العلوي في الموقع.\n');
   }
 });
