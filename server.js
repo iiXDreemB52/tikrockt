@@ -668,25 +668,12 @@ function clearParticipants(room) {
 /* ─────────── عند إلغاء خيار الاستبعاد ─────────── */
 
 function readmitWinners(room) {
+  // نمسح الاستبعاد فقط حتى يصير الفائزون السابقون مؤهّلين من جديد —
+  // لكن لا نُدرجهم تلقائيًا في القائمة، لازم يكتبوا كلمة الدخول مرة أخرى
+  // حتى يُسجَّل اسمهم، تمامًا مثل أي مشاهد جديد.
   room.excluded.clear();
-
-  const back = room.removedWinners.filter((p) => !room.participants.has(p.id));
   room.removedWinners = [];
-  if (back.length === 0) {
-    pushEvent(room, 'system', 'الفائزون السابقون صاروا مؤهّلين للسحب مرة أخرى.');
-    return;
-  }
-
-  let added = 0;
-  back.forEach((person) => {
-    if (room.participants.size >= room.config.maxParticipants) return;
-    addParticipant(room, {
-      id: person.id, handle: person.handle, name: person.name, avatar: person.avatar,
-    }, ' (فائز سابق)');
-    added += 1;
-  });
-
-  pushEvent(room, 'system', `أُعيد ${added} من الفائزين السابقين إلى القائمة.`);
+  pushEvent(room, 'system', 'تم إلغاء استبعاد الفائزين — لازم يكتبوا كلمة الدخول مرة أخرى عشان يتسجل اسمهم.');
 }
 
 /* ─────────── واجهات HTTP ─────────── */
