@@ -23,6 +23,12 @@
       </svg>
       <span>الأحداث</span>
     </button>
+    <button class="chip" id="btn-screens">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="1.6" y="2.6" width="12.8" height="9.2" rx="1.4"/><path d="M5.6 14h4.8"/>
+      </svg>
+      <span>الشاشات</span>
+    </button>
     <button class="chip" id="btn-settings">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
         <path d="M2 4.5h5M11 4.5h3M2 11.5h3M9 11.5h5"/>
@@ -264,6 +270,134 @@
     <footer class="modal__foot">
       <span class="modal__note" id="settings-note"></span>
       <button class="modal__save" id="settings-save">حفظ الإعدادات</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ══ ضبط شاشات البث ══ -->
+<div class="modal" id="screens-modal" hidden>
+  <div class="modal__backdrop" id="screens-backdrop"></div>
+  <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="screens-title">
+    <header class="modal__head">
+      <h2 class="modal__title" id="screens-title">شاشات البث</h2>
+      <div class="tabs" id="screens-tabs">
+        <button class="tag is-on" data-tab="players">اللاعبون والفائز</button>
+        <button class="tag" data-tab="events">سجل الأحداث</button>
+      </div>
+      <button class="chip chip--icon" id="screens-close" title="إغلاق">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <div class="modal__body">
+      <section class="sheet" data-screen="players">
+        <div class="field field--wide">
+          <p class="label">الخلفية</p>
+          <div class="seg" data-key="bg" data-type="string"><button data-value="transparent">شفاف</button><button data-value="green">أخضر</button><button data-value="blue">أزرق</button><button data-value="magenta">بنفسجي</button><button data-value="dark">لوح داكن</button></div>
+          <small>الشفاف يُركَّب مباشرة فوق البث. الأخضر لمن يحتاج مفتاح كروما.</small>
+        </div>
+
+        <div class="field">
+          <label>حجم الخط</label>
+          <div class="range-row">
+            <input type="range" data-key="size" data-type="number" min="14" max="64" step="2">
+            <span class="range-view"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>أقصى عدد بطاقات ظاهرة</label>
+          <div class="range-row">
+            <input type="range" data-key="max" data-type="number" min="0" max="40" step="1">
+            <span class="range-view"></span>
+          </div>
+          <small>صفر = اعرض الجميع.</small>
+        </div>
+
+        <div class="field">
+          <p class="label">الشكل</p>
+          <div class="seg" data-key="layout" data-type="string"><button data-value="grid">شبكة</button><button data-value="list">عمود</button></div>
+        </div>
+
+        <div class="field">
+          <p class="label">الأعمدة</p>
+          <div class="seg" data-key="cols" data-type="string"><button data-value="auto">تلقائي</button><button data-value="2">٢</button><button data-value="3">٣</button><button data-value="4">٤</button></div>
+        </div>
+
+        <div class="field field--wide">
+          <p class="label">مكان القائمة</p>
+          <div class="seg" data-key="align" data-type="string"><button data-value="start">أعلى</button><button data-value="center">وسط</button><button data-value="end">أسفل</button></div>
+        </div>
+
+        <div class="field field--wide">
+          <div class="switches">
+            <label class="switch"><input type="checkbox" data-key="faces" data-type="bool"><span></span>صور الحسابات</label>
+            <label class="switch"><input type="checkbox" data-key="bar" data-type="bool"><span></span>شريط العدّاد والوقت</label>
+            <label class="switch"><input type="checkbox" data-key="sound" data-type="bool"><span></span>صوت الفوز والنقر</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="sheet is-hidden" data-screen="events">
+        <div class="field field--wide">
+          <p class="label">الخلفية</p>
+          <div class="seg" data-key="bg" data-type="string"><button data-value="transparent">شفاف</button><button data-value="green">أخضر</button><button data-value="blue">أزرق</button><button data-value="magenta">بنفسجي</button><button data-value="dark">لوح داكن</button></div>
+        </div>
+
+        <div class="field">
+          <label>حجم الخط</label>
+          <div class="range-row">
+            <input type="range" data-key="size" data-type="number" min="12" max="52" step="2">
+            <span class="range-view"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>عرض الشريط ٪</label>
+          <div class="range-row">
+            <input type="range" data-key="width" data-type="number" min="30" max="100" step="5">
+            <span class="range-view"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>عدد الأسطر</label>
+          <div class="range-row">
+            <input type="range" data-key="rows" data-type="number" min="1" max="20" step="1">
+            <span class="range-view"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>يختفي السطر بعد (ثانية)</label>
+          <div class="range-row">
+            <input type="range" data-key="fade" data-type="number" min="0" max="60" step="5">
+            <span class="range-view"></span>
+          </div>
+          <small>صفر = يبقى حتى يزيحه سطر جديد.</small>
+        </div>
+
+        <div class="field">
+          <p class="label">الاتجاه</p>
+          <div class="seg" data-key="dir" data-type="string"><button data-value="down">الجديد تحت</button><button data-value="up">الجديد فوق</button></div>
+        </div>
+
+        <div class="field">
+          <p class="label">يعرض</p>
+          <div class="seg" data-key="filter" data-type="string"><button data-value="all">الكل</button><button data-value="join">انضمام</button><button data-value="winner">فائزون</button></div>
+        </div>
+
+        <div class="field field--wide">
+          <div class="switches">
+            <label class="switch"><input type="checkbox" data-key="time" data-type="bool"><span></span>إظهار الوقت</label>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="modal__foot">
+      <span class="modal__note">يُطبَّق فورًا على الشاشات المفتوحة · داخل الشاشة نفسها اضغط V لفتح لوحتها</span>
+      <a class="modal__save" id="screens-open" href="/players.html" target="_blank" rel="noopener">فتح الشاشة</a>
     </footer>
   </div>
 </div>
