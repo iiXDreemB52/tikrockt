@@ -107,6 +107,8 @@
     </div>
 
     <div class="launch">
+      <button class="btn btn--quiet launch__clear" id="btn-clear-list-quick">مسح قائمة المشاركين</button>
+
       <button class="launch-btn" id="btn-draw">
         <span class="launch-btn__label">ابدأ</span>
         <span class="launch-btn__hint" id="draw-hint">عدّ تنازلي ٣٠ ثانية ثم يُسحب الفائز</span>
@@ -246,10 +248,22 @@
       <div class="field field--wide">
         <p class="label">سلوك الجولة</p>
         <div class="switches">
-          <label class="switch"><input type="checkbox" id="set-autodraw"><span></span>اسحب الفائز تلقائيًا بعد انتهاء العد</label>
-          <label class="switch"><input type="checkbox" id="set-roundonly"><span></span>اقبل التسجيل أثناء العد التنازلي فقط</label>
-          <label class="switch"><input type="checkbox" id="set-stopfull"><span></span>أنهِ العد فورًا عند اكتمال العدد</label>
-          <label class="switch"><input type="checkbox" id="set-exclude"><span></span>استبعد من فاز سابقًا من السحوبات القادمة</label>
+          <div class="switch-item">
+            <label class="switch"><input type="checkbox" id="set-autodraw"><span></span>اسحب الفائز تلقائيًا بعد انتهاء العد</label>
+            <small>لو مفعّل: العد التنازلي يختار الفائز لحاله بمجرد ما يوصل صفر، بدون ما تضغط شيء. لو غير مفعّل: العد ينتهي ويوقف، وأنت تضغط «ابدأ» مرة ثانية عشان يصير السحب فعليًا.</small>
+          </div>
+          <div class="switch-item">
+            <label class="switch"><input type="checkbox" id="set-roundonly"><span></span>اقبل التسجيل أثناء العد التنازلي فقط</label>
+            <small>لو مفعّل: التسجيل يكون مقفل طول الوقت، ويفتح بس وأنت ضاغط «ابدأ» (أثناء العد). لو غير مفعّل: التسجيل مفتوح دايمًا حتى قبل ما تبدأ أي عدّ.</small>
+          </div>
+          <div class="switch-item">
+            <label class="switch"><input type="checkbox" id="set-stopfull"><span></span>أنهِ العد فورًا عند اكتمال العدد</label>
+            <small>لو مفعّل: بمجرد ما يوصل عدد المسجّلين للحد الأقصى (اللي حاططه فوق)، العد التنازلي يتوقف على طول بدل ما يكمل للنهاية.</small>
+          </div>
+          <div class="switch-item">
+            <label class="switch"><input type="checkbox" id="set-exclude"><span></span>استبعد من فاز سابقًا من السحوبات القادمة</label>
+            <small>لو مفعّل: أي شخص فاز مرة، يُحذف من القائمة ولازم يكتب كلمة الدخول من جديد عشان يشارك بسحب ثاني. لو غير مفعّل: نفس الشخص ممكن يفوز أكثر من مرة.</small>
+          </div>
         </div>
       </div>
 
