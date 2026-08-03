@@ -312,18 +312,20 @@ function runDraw(winner) {
   const totalSteps = Math.max(18, Math.min(nodes.length * 2, 34));
   const startIndex = Math.floor(Math.random() * nodes.length);
   let step = 0;
+  let prevNode = null;
 
   const hop = () => {
-    nodes.forEach((n) => n.classList.remove('is-spot'));
     const remaining = totalSteps - step;
     const node = remaining <= 1 ? target : nodes[(startIndex + step) % nodes.length];
+    if (prevNode && prevNode !== node) prevNode.classList.remove('is-spot');
     node.classList.add('is-spot');
-    node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (remaining % 4 === 0) node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    prevNode = node;
     tick();
     step += 1;
 
     if (step > totalSteps) {
-      nodes.forEach((n) => n.classList.remove('is-spot'));
+      if (prevNode) prevNode.classList.remove('is-spot');
       finishDraw(winner, target);
       return;
     }
@@ -499,6 +501,7 @@ setFields.volume.addEventListener('input', () => {
 $('btn-clear-list').addEventListener('click', () => socket.emit('clear'));
 $('btn-clear-history').addEventListener('click', () => socket.emit('history:clear'));
 $('btn-demo').addEventListener('click', () => socket.emit('demo', { count: 12 }));
+$('btn-demo-heavy').addEventListener('click', () => socket.emit('demo', { count: 50 }));
 
 /* ═══════════ ضبط شاشات البث ═══════════ */
 
