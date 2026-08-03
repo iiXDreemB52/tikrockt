@@ -24,6 +24,19 @@
   .bar { display: flex; align-items: center; gap: 9px; flex: none; }
   body.no-bar .bar { display: none; }
 
+  /* ═══ تلميح كلمة الدخول ═══ */
+
+  .stream-hint {
+    flex: none;
+    margin: 0;
+    font-size: calc(var(--size) * .46);
+    font-weight: 700;
+    color: var(--signal);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+  }
+  .stream-hint b { font-family: var(--display); font-weight: 800; }
+  body.no-hint .stream-hint { display: none; }
+
   .pill {
     display: inline-flex;
     align-items: baseline;
@@ -197,6 +210,8 @@
 <body>
 
 <div class="screen">
+  <p class="stream-hint" id="stream-hint">اكتب <b id="hint-word">بلعب</b> في الشات ليُسجَّل اسمك</p>
+
   <div class="bar">
     <span class="pill"><span class="pill__label">المشاركون</span><b id="count">٠</b></span>
     <span class="pill pill--timer" id="timer" hidden><span class="pill__label">يبدأ بعد</span><b id="timer-num">٠</b></span>
@@ -266,6 +281,7 @@
   <div class="panel__row">
     <button id="p-faces">الصور</button>
     <button id="p-bar">العدّاد</button>
+    <button id="p-hint">التلميح</button>
     <button id="p-sound">الصوت</button>
     <button id="p-test">تجربة الفوز</button>
   </div>
@@ -292,6 +308,7 @@ const shredsEl = document.getElementById('shreds');
 let participants = [];
 let pending = null;
 let drawing = false;
+let drawSeq = 0; // يزيد مع كل سحب جديد؛ يلغي أي رسم متأخر من سحب سابق
 
 /* ═══ الإعدادات — تُضبط من الموقع أو من هذه اللوحة (زر V) ═══ */
 
@@ -308,6 +325,7 @@ const prefs = Overlay.init({
     max: 0,
     faces: true,
     bar: true,
+    hint: true,
     sound: true,
   },
 });
@@ -327,6 +345,7 @@ function applyAll(current) {
   document.documentElement.style.setProperty('--cols', current.cols === 'auto' ? 'auto-fill' : current.cols);
   document.body.classList.toggle('no-faces', !current.faces);
   document.body.classList.toggle('no-bar', !current.bar);
+  document.body.classList.toggle('no-hint', !current.hint);
   Overlay.setMuted(!current.sound);
 
   markGroup('[data-layout]', 'layout', current.layout);
@@ -342,6 +361,7 @@ function applyAll(current) {
 
   Overlay.toggleButton(document.getElementById('p-faces'), current.faces, 'الصور', 'بدون صور');
   Overlay.toggleButton(document.getElementById('p-bar'), current.bar, 'العدّاد', 'بدون عدّاد');
+  Overlay.toggleButton(document.getElementById('p-hint'), current.hint, 'التلميح', 'بدون تلميح');
   Overlay.toggleButton(document.getElementById('p-sound'), current.sound, 'الصوت', 'صامت');
 
   renderRoster();
@@ -412,21 +432,43 @@ function addParticipant(p) {
 
 function runDraw(winner) {
   drawing = true;
+  drawSeq += 1;
+  const seq = drawSeq; // بصمة هذا السحب بالذات
+
   const nodes = [...rosterEl.querySelectorAll('.chip:not(.chip--more)')];
   const target = nodes.find((n) => n.dataset.id === winner.id);
 
   if (nodes.length < 2 || !target) {
-    reveal(winner);
+    reveal(winner, seq);
     return;
   }
 
   const steps = Math.max(20, Math.min(nodes.length * 2, 36));
-  const start = Math.floor(Math.random() * nodes.length);
   let step = 0;
   let prevNode = null;
+  let prevIndex = -1;
 
   const hop = () => {
-    const node = (steps - step) <= 1 ? target : nodes[(start + step) % nodes.length];
+    // إذا صار سحب جديد أثناء تنفيذ هذا التسلسل، نوقفه فورًا حتى ما
+    // يرسم فائزًا قديمًا فوق نتيجة السحب الجديد
+    if (seq !== drawSeq) {
+      if (prevNode) prevNode.classList.remove('is-spot');
+      return;
+    }
+
+    let node;
+    if (steps - step <= 1) {
+      node = target;
+    } else {
+      // اختيار موضع عشوائي فعلي في كل خطوة (بدل المشي المتسلسل على القائمة)
+      let idx;
+      do {
+        idx = Math.floor(Math.random() * nodes.length);
+      } while (nodes.length > 1 && idx === prevIndex);
+      node = nodes[idx];
+      prevIndex = idx;
+    }
+
     if (prevNode && prevNode !== node) prevNode.classList.remove('is-spot');
     node.classList.add('is-spot');
     prevNode = node;
@@ -435,8 +477,9 @@ function runDraw(winner) {
 
     if (step > steps) {
       setTimeout(() => {
+        if (seq !== drawSeq) return;
         if (prevNode) prevNode.classList.remove('is-spot');
-        reveal(winner);
+        reveal(winner, seq);
       }, 430);
       return;
     }
@@ -454,7 +497,8 @@ function paintWinner(winner) {
   Overlay.face(document.getElementById('w-face'), winner);
 }
 
-function reveal(winner) {
+function reveal(winner, seq) {
+  if (seq !== undefined && seq !== drawSeq) return; // نتيجة سحب قديم لاغية
   drawing = false;
   paintWinner(winner);
   document.body.classList.add('is-revealing');
@@ -480,6 +524,7 @@ function reveal(winner) {
 }
 
 function backToRoster() {
+  drawSeq += 1; // يلغي أي رسم سحب لايزال قيد التنفيذ
   document.body.classList.remove('is-revealing');
   shredsEl.replaceChildren();
 }
@@ -495,6 +540,7 @@ function paintTimer(round) {
 
 socket.on('state', (s) => {
   if (s.config && s.config.overlay) Overlay.fromServer(s.config.overlay.players);
+  if (s.config && s.config.keyword) document.getElementById('hint-word').textContent = s.config.keyword;
 
   participants = s.participants || [];
   renderRoster();
@@ -511,6 +557,10 @@ socket.on('state', (s) => {
 
 socket.on('participant:add', (p) => { if (!drawing) addParticipant(p); });
 socket.on('participants:clear', () => { participants = []; renderRoster(); });
+
+socket.on('settings', (config) => {
+  if (config && config.keyword) document.getElementById('hint-word').textContent = config.keyword;
+});
 
 socket.on('round:start', paintTimer);
 socket.on('round:tick', paintTimer);
@@ -533,6 +583,7 @@ document.getElementById('p-size').addEventListener('input', (e) => Overlay.set('
 document.getElementById('p-max').addEventListener('input', (e) => Overlay.set('max', Number(e.target.value)));
 document.getElementById('p-faces').addEventListener('click', () => Overlay.set('faces', !Overlay.get('faces')));
 document.getElementById('p-bar').addEventListener('click', () => Overlay.set('bar', !Overlay.get('bar')));
+document.getElementById('p-hint').addEventListener('click', () => Overlay.set('hint', !Overlay.get('hint')));
 document.getElementById('p-sound').addEventListener('click', () => {
   const on = !Overlay.get('sound');
   Overlay.set('sound', on);
