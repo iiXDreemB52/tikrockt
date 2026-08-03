@@ -55,7 +55,9 @@
     align-content: start;
     gap: 8px;
     transition: opacity .35s ease;
+    contain: layout paint;
   }
+  .roster.no-anim .chip { animation: none; }
   body[data-layout="list"] .roster { grid-template-columns: 1fr; }
   body.is-revealing .roster { opacity: .22; }
 
@@ -272,8 +274,6 @@
     <span class="panel__hint">V يفتح ويغلق هذه اللوحة</span>
     <button data-panel-close style="margin-inline-start:auto">إغلاق</button>
   </div>
-
-  <p class="panel__hint">?bg=transparent&size=30&layout=list&align=end&max=8&faces=0&bar=0&sound=0</p>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -458,13 +458,24 @@ function reveal(winner) {
   drawing = false;
   paintWinner(winner);
   document.body.classList.add('is-revealing');
-  Overlay.victory();
-  Overlay.shreds(shredsEl);
+
+  // نؤجّل الصوت والكونفيتي فريم واحد حتى تاخذ بطاقة الفائز رسمتها الأولى
+  // بدون ما تتزاحم مع كل هالشغل التزامني — هذا يقلل التقطيع لحظة الإعلان
+  requestAnimationFrame(() => {
+    Overlay.victory();
+    Overlay.shreds(shredsEl);
+  });
 
   if (pending) {
     participants = pending;
     pending = null;
-    setTimeout(renderRoster, 700);
+    setTimeout(() => {
+      // إعادة رسم القائمة بعد إزالة الفائز ما تحتاج أنيميشن "دخول" على
+      // كل البطاقات المتبقية دفعة وحدة — تعطيلها مؤقتًا يوفّر حمل رندر كبير
+      rosterEl.classList.add('no-anim');
+      renderRoster();
+      requestAnimationFrame(() => requestAnimationFrame(() => rosterEl.classList.remove('no-anim')));
+    }, 700);
   }
 }
 
