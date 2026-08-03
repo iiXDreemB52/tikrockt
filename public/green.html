@@ -3,16 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🟩 شاشة الأحداث الخضراء</title>
+<title>شاشة الأحداث · كروما</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@700;800&family=Readex+Pro:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --chroma: #00ff00;
-    --ink: #06210c;
-    --card: rgba(255, 255, 255, .92);
+    --chroma:   #00ff00;
+    --paper:    #F4EEE2;
+    --paper-2:  #E7DDCA;
+    --graphite: #16262B;
+    --graphite-2: #566E75;
+    --signal:   #C3301A;
+    --gold:     #FFC53D;
+    --live:     #1F9D62;
     --size: 26px;
+    --display: 'Baloo Bhaijaan 2', system-ui, sans-serif;
+    --body: 'Readex Pro', system-ui, sans-serif;
+    --mono: 'Space Mono', ui-monospace, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -21,8 +29,8 @@
     margin: 0;
     height: 100%;
     background: var(--chroma);
-    font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
-    color: var(--ink);
+    font-family: var(--body);
+    color: var(--graphite);
     overflow: hidden;
   }
 
@@ -31,88 +39,128 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 24px;
+    gap: 9px;
+    padding: 26px;
   }
 
   .row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    position: relative;
     align-self: flex-start;
     max-width: 100%;
-    padding: 10px 18px;
-    border-radius: 14px;
-    background: var(--card);
-    border-inline-start: 6px solid #1f7a3a;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 18px 11px;
+    border-radius: 4px;
+    border-inline-start: 5px solid var(--graphite-2);
+    background: var(--paper);
     font-size: var(--size);
-    font-weight: 600;
-    line-height: 1.25;
-    box-shadow: 0 6px 0 rgba(0, 0, 0, .12);
-    animation: pop .28s cubic-bezier(.2, .9, .3, 1.35) both;
+    font-weight: 500;
+    line-height: 1.3;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .16);
+    animation: pop .26s cubic-bezier(.2, 1, .3, 1.3) both;
   }
-  .row__icon { font-size: 1.1em; flex: none; }
+
+  .row__tag {
+    flex: none;
+    font-size: .42em;
+    font-weight: 600;
+    letter-spacing: .1em;
+    color: var(--graphite-2);
+  }
   .row__text { min-width: 0; overflow-wrap: anywhere; }
   .row__time {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: .55em;
-    opacity: .55;
-    margin-inline-start: auto;
     flex: none;
+    margin-inline-start: auto;
+    padding-inline-start: 14px;
+    font-family: var(--mono);
+    font-size: .42em;
+    color: var(--graphite-2);
   }
   .no-time .row__time { display: none; }
 
+  .row--join { border-inline-start-color: var(--live); }
+  .row--join .row__tag { color: var(--live); }
+  .row--round { border-inline-start-color: var(--paper-2); }
+  .row--connection { border-inline-start-color: var(--graphite-2); }
+  .row--error { border-inline-start-color: var(--signal); }
+  .row--error .row__tag { color: var(--signal); }
+
   .row--winner {
-    background: #ffd45e;
-    border-inline-start-color: #a05a00;
-    font-family: 'Reem Kufi', sans-serif;
-    font-size: calc(var(--size) * 1.4);
-    padding: 16px 26px;
-    box-shadow: 0 8px 0 rgba(0, 0, 0, .18);
+    background: var(--gold);
+    border-inline-start-color: var(--signal);
+    padding: 15px 92px 17px 24px;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: calc(var(--size) * 1.32);
+    box-shadow: 0 5px 0 rgba(0, 0, 0, .22);
   }
-  .row--round { border-inline-start-color: #6b3fd4; }
-  .row--connection { border-inline-start-color: #0a6fa8; }
-  .row--error { background: #ffd0d8; border-inline-start-color: #c01c3c; }
-  .row--system { border-inline-start-color: #55606e; }
+  .row--winner .row__tag { display: none; }
+  .row--winner::after {
+    content: 'فائز';
+    position: absolute;
+    inset-inline-end: 16px;
+    top: 50%;
+    padding: 1px 10px 3px;
+    border: 3px solid var(--signal);
+    border-radius: 4px;
+    color: var(--signal);
+    font-family: var(--display);
+    font-size: .5em;
+    letter-spacing: .05em;
+    mix-blend-mode: multiply;
+    transform: translateY(-50%) rotate(-12deg);
+  }
 
   @keyframes pop {
-    from { transform: translateY(14px) scale(.96); opacity: 0; }
+    from { transform: translateY(12px); opacity: 0; }
     to   { transform: none; opacity: 1; }
   }
 
-  /* لوحة الضبط — تختفي تلقائيًا وما تظهر في البث إلا لما تحرك الماوس */
+  /* لوحة الضبط — تظهر بحركة الماوس فقط */
   .panel {
     position: fixed;
     top: 12px;
     inset-inline-start: 12px;
+    z-index: 5;
     display: grid;
-    gap: 8px;
-    padding: 12px 14px;
-    border-radius: 12px;
-    background: rgba(10, 14, 32, .92);
-    color: #eaf1ff;
+    gap: 9px;
+    padding: 13px 15px;
+    border-radius: 8px;
+    background: #0F2A31;
+    color: #F4EEE2;
     font-size: 12.5px;
     opacity: 0;
     pointer-events: none;
     transition: opacity .2s;
-    z-index: 5;
   }
   body.show-panel .panel { opacity: 1; pointer-events: auto; }
   .panel__row { display: flex; align-items: center; gap: 8px; }
-  .panel label { color: #93a1c9; }
+  .panel label { color: #7E97A0; }
   .panel button {
-    border: 1px solid #33447f;
+    border: 1px solid #1D4952;
     background: transparent;
-    color: #eaf1ff;
-    border-radius: 999px;
-    padding: 4px 10px;
+    color: #F4EEE2;
+    border-radius: 4px;
+    padding: 4px 11px;
     cursor: pointer;
     font-size: 12px;
+    font-family: inherit;
   }
-  .panel button.is-on { border-color: #33e1ff; color: #33e1ff; }
-  .panel input[type="range"] { accent-color: #33e1ff; width: 110px; }
-  .swatch { width: 20px; height: 20px; border-radius: 6px; border: 1px solid #33447f; cursor: pointer; }
-  .hint { position: fixed; bottom: 10px; inset-inline-start: 12px; font-size: 11px; color: rgba(6,33,12,.45); z-index: 4; }
+  .panel button.is-on { border-color: var(--gold); color: var(--gold); }
+  .panel input[type="range"] { accent-color: var(--gold); width: 108px; }
+  .swatch { width: 20px; height: 20px; border-radius: 4px; border: 1px solid #2C6270; cursor: pointer; }
+
+  .hint {
+    position: fixed;
+    bottom: 10px;
+    inset-inline-start: 14px;
+    z-index: 4;
+    margin: 0;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: rgba(22, 38, 43, .38);
+  }
 </style>
 </head>
 <body>
@@ -125,7 +173,7 @@
     <span class="swatch" data-color="#00ff00" style="background:#00ff00"></span>
     <span class="swatch" data-color="#0000ff" style="background:#0000ff"></span>
     <span class="swatch" data-color="#ff00ff" style="background:#ff00ff"></span>
-    <span class="swatch" data-color="#000000" style="background:#000"></span>
+    <span class="swatch" data-color="#0B1E24" style="background:#0B1E24"></span>
   </div>
   <div class="panel__row">
     <label>حجم الخط</label>
@@ -140,12 +188,12 @@
   <div class="panel__row">
     <label>الوقت</label>
     <button id="toggle-time" class="is-on">ظاهر</button>
-    <label>عدد الأسطر</label>
+    <label>الأسطر</label>
     <input type="range" id="rows" min="3" max="25" step="1" value="10">
   </div>
 </div>
 
-<p class="hint">حرّك الماوس لإظهار لوحة الضبط · الرابط يقبل ‎?color=00ff00&size=30&filter=join&rows=8</p>
+<p class="hint">حرّك الماوس لإظهار الضبط · ?color=00ff00&size=30&filter=join&rows=8&time=0</p>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -154,7 +202,7 @@
 const params = new URLSearchParams(location.search);
 const feed = document.getElementById('feed');
 
-const ICON = { join: '👤', winner: '🏆', round: '⏱️', connection: '📡', system: 'ℹ️', error: '⚠️' };
+const TAG = { join: 'انضمام', winner: 'فوز', round: 'جولة', connection: 'اتصال', system: 'نظام', error: 'خطأ' };
 
 let filter = params.get('filter') || 'all';
 let maxRows = Number(params.get('rows')) || 10;
@@ -171,8 +219,8 @@ function keep(type) {
 function rowNode(event) {
   const row = document.createElement('div');
   row.className = `row row--${event.type}`;
-  row.innerHTML = '<span class="row__icon"></span><span class="row__text"></span><time class="row__time"></time>';
-  row.querySelector('.row__icon').textContent = ICON[event.type] || '·';
+  row.innerHTML = '<span class="row__tag"></span><span class="row__text"></span><time class="row__time"></time>';
+  row.querySelector('.row__tag').textContent = TAG[event.type] || '';
   row.querySelector('.row__text').textContent = event.text;
   row.querySelector('.row__time').textContent =
     new Date(event.at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
