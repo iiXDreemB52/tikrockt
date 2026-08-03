@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const path = require('path');
 const http = require('http');
-const { randomInt } = require('crypto');
+const { randomInt, randomBytes } = require('crypto');
 const express = require('express');
 const { Server } = require('socket.io');
 const { TikTokLiveConnection, WebcastEvent, ControlEvent } = require('tiktok-live-connector');
@@ -13,25 +13,27 @@ const store = require('./store');
 const PORT = process.env.PORT || 3000;
 const SIGN_API_KEY = process.env.SIGN_API_KEY || undefined;
 
+const MAX_EVENTS = 400;
+const ROOM_IDLE_MS = 10 * 60 * 1000;   // نغلق اتصال البث بعد ١٠ دقائق بلا مشاهدين للغرفة
+const MAX_ROOMS = 200;
+
 /* ══════════════════════════════════════════════════════════════
-   الإعدادات الافتراضية.
-   ما عاد فيه حساب مكتوب داخل الكود — الحساب يتغيّر من الشريط
-   العلوي في الموقع ويُحفظ في data/config.json.
+   الإعدادات الافتراضية لكل غرفة
    ══════════════════════════════════════════════════════════════ */
 
 const DEFAULT_CONFIG = {
   username: '',              // حساب تيك توك المربوط (بدون @)
-  keyword: 'بلعب',           // الكلمة اللي يكتبها المشاهد بالشات
-  matchMode: 'contains',     // exact = الرسالة كلها الكلمة | contains = تكفي الكلمة داخل الرسالة
+  keyword: 'بلعب',           // الكلمة التي يكتبها المشاهد
+  matchMode: 'contains',     // contains = تكفي الكلمة داخل الرسالة | exact = الرسالة كلها
   excludeWinners: true,      // استبعاد من فاز سابقًا
-  maxParticipants: 100,      // الحد الأقصى للمشاركين المسموح دخولهم
-  countdownSeconds: 30,      // مدة العد التنازلي تحت زر «ابدأ»
-  autoDraw: true,            // السحب تلقائيًا عند انتهاء العد
-  joinDuringRoundOnly: false,// true = التسجيل يُقبل فقط أثناء العد التنازلي
-  stopWhenFull: true,        // إنهاء العد فورًا عند اكتمال العدد
+  maxParticipants: 100,      // الحد الأقصى للمشاركين
+  countdownSeconds: 30,      // مدة العد التنازلي
+  startMode: 'countdown',    // سلوك زر «ابدأ»: countdown أو instant
+  autoDraw: true,            // السحب تلقائيًا بعد العد
+  joinDuringRoundOnly: false,
+  stopWhenFull: true,
   sound: { enabled: true, volume: 0.6 },
 
-  // ضبط شاشات البث — يُعدَّل من الموقع ويُطبَّق مباشرة على الشاشات المفتوحة
   overlay: {
     players: {
       bg: 'transparent', size: 26, layout: 'grid', cols: 'auto',
@@ -71,7 +73,7 @@ function sanitizeOverlay(screen, input = {}, base = DEFAULT_CONFIG.overlay[scree
   const out = { ...base };
 
   Object.entries(rules).forEach(([key, rule]) => {
-    const value = input[key];
+    const value = (input || {})[key];
     if (value === undefined) return;
 
     if (rule === 'bool') {
@@ -87,12 +89,6 @@ function sanitizeOverlay(screen, input = {}, base = DEFAULT_CONFIG.overlay[scree
   return out;
 }
 
-const MAX_EVENTS = 400;
-
-/* ---------------------------------------------------------------
-   حفظ/قراءة الإعدادات من القرص
---------------------------------------------------------------- */
-
 function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
   const num = (value, fallback, min, max) => {
     const n = Number.parseInt(value, 10);
@@ -101,6 +97,8 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
   };
 
   const soundInput = input.sound || {};
+  const baseOverlay = base.overlay || DEFAULT_CONFIG.overlay;
+
   return {
     username: String(input.username ?? base.username).trim().replace(/^@/, '').slice(0, 40),
     keyword: (String(input.keyword ?? base.keyword).trim() || base.keyword).slice(0, 40),
@@ -108,6 +106,7 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
     excludeWinners: typeof input.excludeWinners === 'boolean' ? input.excludeWinners : base.excludeWinners,
     maxParticipants: num(input.maxParticipants, base.maxParticipants, 1, 5000),
     countdownSeconds: num(input.countdownSeconds, base.countdownSeconds, 0, 900),
+    startMode: input.startMode === 'instant' || input.startMode === 'countdown' ? input.startMode : base.startMode,
     autoDraw: typeof input.autoDraw === 'boolean' ? input.autoDraw : base.autoDraw,
     joinDuringRoundOnly:
       typeof input.joinDuringRoundOnly === 'boolean' ? input.joinDuringRoundOnly : base.joinDuringRoundOnly,
@@ -117,41 +116,111 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
       volume: Math.min(Math.max(Number(soundInput.volume ?? base.sound.volume) || 0, 0), 1),
     },
     overlay: {
-      players: sanitizeOverlay('players', (input.overlay || {}).players, (base.overlay || DEFAULT_CONFIG.overlay).players),
-      events: sanitizeOverlay('events', (input.overlay || {}).events, (base.overlay || DEFAULT_CONFIG.overlay).events),
+      players: sanitizeOverlay('players', (input.overlay || {}).players, baseOverlay.players),
+      events: sanitizeOverlay('events', (input.overlay || {}).events, baseOverlay.events),
     },
   };
 }
 
-function saveConfig() {
-  store.saveConfig(state.config).catch((err) => {
-    console.error('تعذّر حفظ الإعدادات:', err.message);
-  });
+/* ══════════════════════════════════════════════════════════════
+   الغرف — كل مستخدم للموقع له غرفة مستقلة
+   ══════════════════════════════════════════════════════════════ */
+
+const rooms = new Map();
+const loading = new Map();
+
+function normalizeRoomId(raw) {
+  const clean = String(raw || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+  return clean || 'default';
 }
 
-/* ---------------------------------------------------------------
-   الحالة المركزية — كل الشاشات المفتوحة تشترك في نفس البيانات
---------------------------------------------------------------- */
+function newRoomId() {
+  return randomBytes(5).toString('hex');
+}
 
-const state = {
-  config: { ...DEFAULT_CONFIG, sound: { ...DEFAULT_CONFIG.sound } },
-  status: 'disconnected',       // disconnected | connecting | connected | error
-  statusDetail: 'غير متصل',
-  participants: new Map(),      // id -> participant
-  winner: null,
-  winnerMessages: [],
-  history: [],
-  excluded: new Set(),
-  events: [],
-  round: { active: false, total: 0, remaining: 0 },
-};
+function createRoom(id) {
+  return {
+    id,
+    config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
+    status: 'disconnected',
+    statusDetail: 'غير متصل',
+    participants: new Map(),
+    winner: null,
+    winnerMessages: [],
+    history: [],
+    excluded: new Set(),
+    removedWinners: [],       // فائزون أُخرجوا من القائمة بسبب خيار الاستبعاد
+    events: [],
+    round: { active: false, total: 0, remaining: 0 },
+    connection: null,
+    autoReconnect: true,
+    reconnectTimer: null,
+    reconnectDelay: 5000,
+    roundTimer: null,
+    idleTimer: null,
+    fullNotified: false,
+    lastNoise: { text: '', at: 0 },
+  };
+}
 
-let connection = null;
-let autoReconnect = true;
-let reconnectTimer = null;
-let roundTimer = null;
-let reconnectDelay = 5000;
-const MAX_RECONNECT_DELAY = 60000;
+async function getRoom(rawId) {
+  const id = normalizeRoomId(rawId);
+  if (rooms.has(id)) return rooms.get(id);
+  if (loading.has(id)) return loading.get(id);
+
+  const task = (async () => {
+    const room = createRoom(id);
+
+    const saved = await store.loadConfig(id);
+    if (saved) room.config = sanitizeConfig(saved);
+
+    const winners = await store.loadWinners(id, 50);
+    room.history = winners;
+    winners.forEach((w) => room.excluded.add(w.id));
+
+    // حماية بسيطة من امتلاء الذاكرة
+    if (rooms.size >= MAX_ROOMS) dropIdlestRoom();
+
+    rooms.set(id, room);
+    loading.delete(id);
+    return room;
+  })();
+
+  loading.set(id, task);
+  return task;
+}
+
+function dropIdlestRoom() {
+  let target = null;
+  for (const room of rooms.values()) {
+    const size = io.sockets.adapter.rooms.get(room.id)?.size || 0;
+    if (size === 0) { target = room; break; }
+  }
+  if (target) closeRoom(target, 'ازدحام الذاكرة');
+}
+
+function closeRoom(room, reason) {
+  clearTimeout(room.reconnectTimer);
+  clearTimeout(room.idleTimer);
+  clearInterval(room.roundTimer);
+  room.autoReconnect = false;
+  try { room.connection?.disconnect(); } catch (_) { /* تجاهل */ }
+  rooms.delete(room.id);
+  console.log(`أُغلقت الغرفة ${room.id} (${reason})`);
+}
+
+function scheduleIdleCleanup(room) {
+  clearTimeout(room.idleTimer);
+  room.idleTimer = setTimeout(() => {
+    const size = io.sockets.adapter.rooms.get(room.id)?.size || 0;
+    if (size > 0) return;
+    closeRoom(room, 'بلا مشاهدين');
+  }, ROOM_IDLE_MS);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   خادم الويب
+   ══════════════════════════════════════════════════════════════ */
 
 const app = express();
 const server = http.createServer(app);
@@ -160,94 +229,95 @@ const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* ---------------------------------------------------------------
-   سجل الأحداث — يُبثّ للموقع وللشاشة الخضراء
---------------------------------------------------------------- */
+/* ─────────── سجل الأحداث ─────────── */
 
-let lastNoise = { text: '', at: 0 };
-
-function pushEvent(type, text, extra = {}) {
-  // منع تكرار نفس رسالة الخطأ عشرات المرات في السجل
+function pushEvent(room, type, text, extra = {}) {
   if (type === 'error' || type === 'connection') {
-    if (text === lastNoise.text && Date.now() - lastNoise.at < 8000) return null;
-    lastNoise = { text, at: Date.now() };
+    if (text === room.lastNoise.text && Date.now() - room.lastNoise.at < 8000) return null;
+    room.lastNoise = { text, at: Date.now() };
   }
 
   const event = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    type,                 // join | winner | round | connection | system | error
+    type,
     text,
     at: Date.now(),
     ...extra,
   };
-  state.events.push(event);
-  if (state.events.length > MAX_EVENTS) state.events.shift();
-  io.emit('event', event);
-  console.log(`[${type}] ${text}`);
+  room.events.push(event);
+  if (room.events.length > MAX_EVENTS) room.events.shift();
+  io.to(room.id).emit('event', event);
+  console.log(`[${room.id}] [${type}] ${text}`);
   return event;
 }
 
-/* ---------------------------------------------------------------
-   تطبيع النص العربي حتى تُقبل كل صيغ الكلمة المفتاحية
-   "بلعب" = "بلعــب" = "بِلعب" = " بلعب!! "
---------------------------------------------------------------- */
+/* ─────────── تطبيع النص العربي ─────────── */
 
 function normalizeArabic(input) {
   return String(input || '')
-    .replace(/[\u064B-\u0652\u0670\u0640]/g, '')      // تشكيل + تطويل
-    .replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627') // آ أ إ -> ا
-    .replace(/\u0629/g, '\u0647')                     // ة -> ه
-    .replace(/\u0649/g, '\u064A')                     // ى -> ي
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')                // إزالة الرموز والإيموجي
+    .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
+    .replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/\u0649/g, '\u064A')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
 }
 
-function isJoinMessage(content) {
+function isJoinMessage(room, content) {
   const text = normalizeArabic(content);
-  const key = normalizeArabic(state.config.keyword);
+  const key = normalizeArabic(room.config.keyword);
   if (!key || !text) return false;
-  if (state.config.matchMode === 'contains') {
+  if (room.config.matchMode === 'contains') {
     return text.split(' ').includes(key) || text.includes(key);
   }
   return text === key;
 }
 
-/* ---------------------------------------------------------------
-   لقطة الحالة المرسلة للعميل
---------------------------------------------------------------- */
+/* ─────────── اللقطة والبث ─────────── */
 
-function snapshot() {
+function isJoinOpen(room) {
+  if (room.config.joinDuringRoundOnly && !room.round.active) return false;
+  if (room.participants.size >= room.config.maxParticipants) return false;
+  return true;
+}
+
+function snapshot(room) {
   return {
-    status: state.status,
-    statusDetail: state.statusDetail,
-    config: state.config,
-    participants: [...state.participants.values()],
-    winner: state.winner,
-    winnerMessages: state.winnerMessages,
-    history: state.history,
-    events: state.events.slice(-120),
-    round: state.round,
-    joinOpen: isJoinOpen(),
+    room: room.id,
+    status: room.status,
+    statusDetail: room.statusDetail,
+    config: room.config,
+    participants: [...room.participants.values()],
+    winner: room.winner,
+    winnerMessages: room.winnerMessages,
+    history: room.history,
+    events: room.events.slice(-120),
+    round: room.round,
+    joinOpen: isJoinOpen(room),
   };
 }
 
-function pushStatus() {
-  io.emit('status', {
-    status: state.status,
-    statusDetail: state.statusDetail,
-    username: state.config.username,
+function pushStatus(room) {
+  io.to(room.id).emit('status', {
+    status: room.status,
+    statusDetail: room.statusDetail,
+    username: room.config.username,
   });
 }
 
-function pushSettings() {
-  io.emit('settings', state.config);
+function pushSettings(room) {
+  io.to(room.id).emit('settings', room.config);
 }
 
-/* ---------------------------------------------------------------
-   استخراج بيانات المستخدم من حدث الشات
---------------------------------------------------------------- */
+function saveRoom(room) {
+  store.saveConfig(room.id, room.config).catch((err) => {
+    console.error('تعذّر حفظ الإعدادات:', err.message);
+  });
+}
+
+/* ─────────── قراءة بيانات المستخدم ─────────── */
 
 function readUser(user) {
   if (!user) return null;
@@ -268,14 +338,8 @@ function readUser(user) {
 
 function getChatText(event) {
   const value =
-    event?.comment ??
-    event?.content ??
-    event?.message ??
-    event?.text ??
-    event?.commentText ??
-    event?.messageText ??
-    event?.msg ??
-    '';
+    event?.comment ?? event?.content ?? event?.message ?? event?.text ??
+    event?.commentText ?? event?.messageText ?? event?.msg ?? '';
 
   if (typeof value === 'string') return value;
   if (value && typeof value.text === 'string') return value.text;
@@ -283,89 +347,7 @@ function getChatText(event) {
   return '';
 }
 
-/* ---------------------------------------------------------------
-   الاتصال بالبث
---------------------------------------------------------------- */
-
-async function startConnection(rawUsername) {
-  if (state.status === 'connecting' || state.status === 'connected') {
-    pushEvent('system', 'الاتصال شغّال بالفعل.');
-    return;
-  }
-
-  const username = String(rawUsername || state.config.username || '').trim().replace(/^@/, '');
-  if (!username) {
-    state.status = 'disconnected';
-    state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
-    pushStatus();
-    pushEvent('system', 'ما فيه حساب مربوط. اكتب اسم حسابك في أعلى الصفحة.');
-    return;
-  }
-
-  autoReconnect = true;
-  state.config.username = username;
-  state.status = 'connecting';
-  state.statusDetail = 'جارٍ الاتصال…';
-  pushStatus();
-
-  connection = new TikTokLiveConnection(username, {
-    signApiKey: SIGN_API_KEY,
-    processInitialData: false,      // تجاهل الرسائل القديمة المخزّنة
-    fetchRoomInfoOnConnect: true,
-    enableExtendedGiftInfo: false,
-  });
-
-  connection.on(WebcastEvent.CHAT, onChat);
-
-  connection.on(WebcastEvent.STREAM_END, () => {
-    state.statusDetail = 'انتهى البث';
-    pushEvent('connection', 'انتهى البث المباشر.');
-    teardown('disconnected');
-    scheduleReconnect(username);
-  });
-
-  connection.on(ControlEvent.DISCONNECTED, () => {
-    if (state.status === 'disconnected') return;
-    state.statusDetail = 'انقطع الاتصال';
-    pushEvent('connection', 'انقطع الاتصال بالبث.');
-    teardown('disconnected');
-    scheduleReconnect(username);
-  });
-
-  connection.on(ControlEvent.ERROR, (err) => {
-    pushEvent('error', `خطأ في الاتصال: ${errorText(err)}`);
-  });
-
-  try {
-    await connection.connect();
-    state.status = 'connected';
-    state.statusDetail = `متصل بـ @${username}`;
-    pushStatus();
-    pushEvent('connection', `تم الاتصال ببث @${username} · كلمة الدخول «${state.config.keyword}»`);
-    reconnectDelay = 5000;
-  } catch (err) {
-    state.status = 'error';
-    state.statusDetail = 'فشل الاتصال';
-    pushStatus();
-    pushEvent('error', describeConnectError(err, username));
-    connection = null;
-    scheduleReconnect(username);
-  }
-}
-
-function scheduleReconnect(username) {
-  if (!autoReconnect || !username) return;
-  clearTimeout(reconnectTimer);
-  const delay = reconnectDelay;
-  reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
-  state.statusDetail = `إعادة المحاولة خلال ${Math.round(delay / 1000)} ثانية`;
-  pushStatus();
-  reconnectTimer = setTimeout(() => {
-    if (state.status === 'disconnected' || state.status === 'error') {
-      startConnection(username);
-    }
-  }, delay);
-}
+/* ─────────── الاتصال بالبث ─────────── */
 
 function errorText(err) {
   if (!err) return 'خطأ غير معروف';
@@ -385,245 +367,334 @@ function describeConnectError(err, username) {
     return `تعذّر الاتصال: يبدو أن @${username} ليس على الهواء الآن، أو الاسم غير صحيح.`;
   }
   if (/sign|rate.?limit|429|euler/i.test(msg)) {
-    return 'تعذّر الاتصال: تجاوزت حد خدمة التوقيع. انتظر دقيقة، أو تأكد من SIGN_API_KEY في ملف .env';
+    return 'تعذّر الاتصال: تجاوزت حد خدمة التوقيع. انتظر دقيقة، أو تأكد من SIGN_API_KEY.';
   }
   return `تعذّر الاتصال: ${msg}`;
 }
 
-async function checkAccount(rawUsername) {
-  const username = String(rawUsername || '').trim().replace(/^@/, '');
-  if (!username) {
-    pushEvent('error', 'اكتب اسم المستخدم أولًا.');
+async function startConnection(room, rawUsername) {
+  if (room.status === 'connecting' || room.status === 'connected') {
+    pushEvent(room, 'system', 'الاتصال شغّال بالفعل.');
     return;
   }
-  pushEvent('system', `جارٍ التحقق من @${username} …`);
+
+  const username = String(rawUsername || room.config.username || '').trim().replace(/^@/, '');
+  if (!username) {
+    room.status = 'disconnected';
+    room.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
+    pushStatus(room);
+    pushEvent(room, 'system', 'ما فيه حساب مربوط. اكتب اسم حسابك في أعلى الصفحة.');
+    return;
+  }
+
+  room.autoReconnect = true;
+  room.config.username = username;
+  room.status = 'connecting';
+  room.statusDetail = 'جارٍ الاتصال…';
+  pushStatus(room);
+
+  const connection = new TikTokLiveConnection(username, {
+    signApiKey: SIGN_API_KEY,
+    processInitialData: false,
+    fetchRoomInfoOnConnect: true,
+    enableExtendedGiftInfo: false,
+  });
+  room.connection = connection;
+
+  connection.on(WebcastEvent.CHAT, (event) => onChat(room, event));
+
+  connection.on(WebcastEvent.STREAM_END, () => {
+    if (room.connection !== connection) return;
+    room.statusDetail = 'انتهى البث';
+    pushEvent(room, 'connection', 'انتهى البث المباشر.');
+    teardown(room, 'disconnected');
+    scheduleReconnect(room, username);
+  });
+
+  connection.on(ControlEvent.DISCONNECTED, () => {
+    if (room.connection !== connection || room.status === 'disconnected') return;
+    room.statusDetail = 'انقطع الاتصال';
+    pushEvent(room, 'connection', 'انقطع الاتصال بالبث.');
+    teardown(room, 'disconnected');
+    scheduleReconnect(room, username);
+  });
+
+  connection.on(ControlEvent.ERROR, (err) => {
+    if (room.connection !== connection) return;
+    pushEvent(room, 'error', `خطأ في الاتصال: ${errorText(err)}`);
+  });
+
+  try {
+    await connection.connect();
+    if (room.connection !== connection) return;
+    room.status = 'connected';
+    room.statusDetail = `متصل بـ @${username}`;
+    pushStatus(room);
+    pushEvent(room, 'connection', `تم الاتصال ببث @${username} · كلمة الدخول «${room.config.keyword}»`);
+    room.reconnectDelay = 5000;
+  } catch (err) {
+    if (room.connection !== connection) return;
+    room.status = 'error';
+    room.statusDetail = 'فشل الاتصال';
+    pushStatus(room);
+    pushEvent(room, 'error', describeConnectError(err, username));
+    room.connection = null;
+    scheduleReconnect(room, username);
+  }
+}
+
+function scheduleReconnect(room, username) {
+  if (!room.autoReconnect || !username) return;
+  clearTimeout(room.reconnectTimer);
+  const delay = room.reconnectDelay;
+  room.reconnectDelay = Math.min(room.reconnectDelay * 2, 60000);
+  room.statusDetail = `إعادة المحاولة خلال ${Math.round(delay / 1000)} ثانية`;
+  pushStatus(room);
+  room.reconnectTimer = setTimeout(() => {
+    if (!rooms.has(room.id)) return;
+    if (room.status === 'disconnected' || room.status === 'error') startConnection(room, username);
+  }, delay);
+}
+
+async function checkAccount(room, rawUsername) {
+  const username = String(rawUsername || '').trim().replace(/^@/, '');
+  if (!username) {
+    pushEvent(room, 'error', 'اكتب اسم المستخدم أولًا.');
+    return;
+  }
+  pushEvent(room, 'system', `جارٍ التحقق من @${username} …`);
   try {
     const probe = new TikTokLiveConnection(username, { signApiKey: SIGN_API_KEY });
     const live = await probe.fetchIsLive();
-    pushEvent(
-      'system',
-      live ? `@${username} على الهواء الآن.` : `الاسم @${username} صحيح، لكن الحساب مو على الهواء حاليًا.`
-    );
+    pushEvent(room, 'system', live
+      ? `@${username} على الهواء الآن.`
+      : `الاسم @${username} صحيح، لكن الحساب مو على الهواء حاليًا.`);
   } catch (err) {
-    pushEvent('error', describeConnectError(err, username));
+    pushEvent(room, 'error', describeConnectError(err, username));
   }
 }
 
-function teardown(nextStatus) {
-  try {
-    connection?.disconnect();
-  } catch (_) { /* تجاهل */ }
-  connection = null;
-  state.status = nextStatus;
-  pushStatus();
+function teardown(room, nextStatus) {
+  try { room.connection?.disconnect(); } catch (_) { /* تجاهل */ }
+  room.connection = null;
+  room.status = nextStatus;
+  pushStatus(room);
 }
 
-function stopConnection(silent = false) {
-  autoReconnect = false;
-  clearTimeout(reconnectTimer);
-  reconnectDelay = 5000;
-  if (!connection) {
-    state.status = 'disconnected';
-    state.statusDetail = 'غير متصل';
-    pushStatus();
+function stopConnection(room, silent = false) {
+  room.autoReconnect = false;
+  clearTimeout(room.reconnectTimer);
+  room.reconnectDelay = 5000;
+  if (!room.connection) {
+    room.status = 'disconnected';
+    room.statusDetail = 'غير متصل';
+    pushStatus(room);
     return;
   }
-  state.statusDetail = 'غير متصل';
-  teardown('disconnected');
-  if (!silent) pushEvent('connection', 'تم إيقاف الاتصال.');
+  room.statusDetail = 'غير متصل';
+  teardown(room, 'disconnected');
+  if (!silent) pushEvent(room, 'connection', 'تم إيقاف الاتصال.');
 }
 
-/* ---------------------------------------------------------------
-   تغيير حساب تيك توك من الواجهة
---------------------------------------------------------------- */
-
-function setAccount(rawUsername) {
+function setAccount(room, rawUsername) {
   const username = String(rawUsername || '').trim().replace(/^@/, '').slice(0, 40);
   if (!username) {
-    pushEvent('error', 'اسم الحساب فاضي.');
+    pushEvent(room, 'error', 'اسم الحساب فاضي.');
     return;
   }
-  if (username === state.config.username && state.status === 'connected') {
-    pushEvent('system', `أنت متصل أصلًا بـ @${username}.`);
+  if (username === room.config.username && room.status === 'connected') {
+    pushEvent(room, 'system', `أنت متصل أصلًا بـ @${username}.`);
     return;
   }
 
-  stopConnection(true);
-  state.config.username = username;
-  saveConfig();
-  pushSettings();
-  pushEvent('system', `تم تغيير الحساب إلى @${username}.`);
-  startConnection(username);
+  stopConnection(room, true);
+  room.config.username = username;
+  saveRoom(room);
+  pushSettings(room);
+  pushEvent(room, 'system', `تم تغيير الحساب إلى @${username}.`);
+  startConnection(room, username);
 }
 
-/* ---------------------------------------------------------------
-   معالجة كل رسالة شات
---------------------------------------------------------------- */
+/* ─────────── معالجة الشات ─────────── */
 
-function isJoinOpen() {
-  if (state.config.joinDuringRoundOnly && !state.round.active) return false;
-  if (state.participants.size >= state.config.maxParticipants) return false;
-  return true;
+function noticeFull(room) {
+  if (room.fullNotified) return;
+  room.fullNotified = true;
+  pushEvent(room, 'system', `اكتمل العدد (${room.config.maxParticipants}) — التسجيل مقفل.`);
+  io.to(room.id).emit('join:closed', { reason: 'full' });
+  if (room.round.active && room.config.stopWhenFull) endRound(room, true);
 }
 
-let fullNotified = false;
+function addParticipant(room, user, note = '') {
+  const participant = { ...user, order: room.participants.size + 1, joinedAt: Date.now() };
+  room.participants.set(user.id, participant);
+  io.to(room.id).emit('participant:add', participant);
+  pushEvent(room, 'join', `${participant.name} انضم للقائمة${note}`, {
+    handle: participant.handle,
+    avatar: participant.avatar,
+    order: participant.order,
+  });
+  return participant;
+}
 
-function onChat(event) {
+function onChat(room, event) {
   const user = readUser(event?.user);
   if (!user) return;
   const content = getChatText(event);
 
-  // رسائل الفائز الحالي تُبثّ إلى شاشة المتابعة
-  if (state.winner && state.winner.id === user.id) {
+  if (room.winner && room.winner.id === user.id) {
     const message = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: content,
       at: Date.now(),
     };
-    state.winnerMessages.push(message);
-    if (state.winnerMessages.length > 300) state.winnerMessages.shift();
-    io.emit('winner:message', message);
+    room.winnerMessages.push(message);
+    if (room.winnerMessages.length > 300) room.winnerMessages.shift();
+    io.to(room.id).emit('winner:message', message);
   }
 
-  if (!isJoinMessage(content)) return;
-  if (state.participants.has(user.id)) return;
-  if (state.config.excludeWinners && state.excluded.has(user.id)) return;
+  if (!isJoinMessage(room, content)) return;
+  if (room.participants.has(user.id)) return;
 
-  if (state.config.joinDuringRoundOnly && !state.round.active) return;
+  // الاستبعاد يعمل فقط عندما يكون الخيار مفعّلًا
+  if (room.config.excludeWinners && room.excluded.has(user.id)) return;
 
-  if (state.participants.size >= state.config.maxParticipants) {
-    if (!fullNotified) {
-      fullNotified = true;
-      pushEvent('system', `اكتمل العدد (${state.config.maxParticipants}) — التسجيل مقفل.`);
-      io.emit('join:closed', { reason: 'full' });
-      if (state.round.active && state.config.stopWhenFull) endRound(true);
-    }
+  if (room.config.joinDuringRoundOnly && !room.round.active) return;
+
+  if (room.participants.size >= room.config.maxParticipants) {
+    noticeFull(room);
     return;
   }
 
-  const participant = {
-    ...user,
-    order: state.participants.size + 1,
-    joinedAt: Date.now(),
-  };
-  state.participants.set(user.id, participant);
-  io.emit('participant:add', participant);
-  pushEvent('join', `${participant.name} انضم للقائمة`, {
-    handle: participant.handle,
-    avatar: participant.avatar,
-    order: participant.order,
-  });
+  addParticipant(room, user);
 
-  if (state.participants.size >= state.config.maxParticipants) {
-    fullNotified = true;
-    pushEvent('system', `اكتمل العدد (${state.config.maxParticipants}) — التسجيل مقفل.`);
-    io.emit('join:closed', { reason: 'full' });
-    if (state.round.active && state.config.stopWhenFull) endRound(true);
-  }
+  if (room.participants.size >= room.config.maxParticipants) noticeFull(room);
 }
 
-/* ---------------------------------------------------------------
-   الجولة والعد التنازلي
---------------------------------------------------------------- */
+/* ─────────── الجولة ─────────── */
 
-function startRound() {
-  if (state.round.active) return;
+function startRound(room) {
+  if (room.round.active) return;
 
-  const total = state.config.countdownSeconds;
+  const total = room.config.countdownSeconds;
   if (total <= 0) {
-    pickWinner();
+    pickWinner(room);
     return;
   }
 
-  state.round = { active: true, total, remaining: total };
-  io.emit('round:start', { ...state.round });
-  pushEvent('round', `بدأ العد التنازلي · ${total} ثانية والتسجيل مفتوح`);
+  room.round = { active: true, total, remaining: total };
+  io.to(room.id).emit('round:start', { ...room.round });
+  pushEvent(room, 'round', `بدأ العد التنازلي · ${total} ثانية والتسجيل مفتوح`);
 
-  clearInterval(roundTimer);
-  roundTimer = setInterval(() => {
-    state.round.remaining -= 1;
-    if (state.round.remaining <= 0) {
-      endRound(true);
+  clearInterval(room.roundTimer);
+  room.roundTimer = setInterval(() => {
+    room.round.remaining -= 1;
+    if (room.round.remaining <= 0) {
+      endRound(room, true);
       return;
     }
-    io.emit('round:tick', { ...state.round });
+    io.to(room.id).emit('round:tick', { ...room.round });
   }, 1000);
 }
 
-function endRound(draw) {
-  clearInterval(roundTimer);
-  roundTimer = null;
-  if (!state.round.active) return;
-  state.round = { active: false, total: state.round.total, remaining: 0 };
-  io.emit('round:end', { drew: Boolean(draw) });
+function endRound(room, draw) {
+  clearInterval(room.roundTimer);
+  room.roundTimer = null;
+  if (!room.round.active) return;
+  room.round = { active: false, total: room.round.total, remaining: 0 };
+  io.to(room.id).emit('round:end', { drew: Boolean(draw) });
 
-  if (draw && state.config.autoDraw) {
-    pushEvent('round', 'انتهى العد التنازلي · جارٍ اختيار الفائز');
-    pickWinner();
+  if (draw && room.config.autoDraw) {
+    pushEvent(room, 'round', 'انتهى العد التنازلي · جارٍ اختيار الفائز');
+    pickWinner(room);
   } else {
-    pushEvent('round', draw ? 'انتهى العد التنازلي' : 'تم إلغاء العد التنازلي');
+    pushEvent(room, 'round', draw ? 'انتهى العد التنازلي' : 'تم إلغاء العد التنازلي');
   }
 }
 
-/* ---------------------------------------------------------------
-   السحب
---------------------------------------------------------------- */
+/* ─────────── السحب ─────────── */
 
-function pickWinner() {
-  const pool = [...state.participants.values()].filter(
-    (p) => !(state.config.excludeWinners && state.excluded.has(p.id))
+function pickWinner(room) {
+  const pool = [...room.participants.values()].filter(
+    (p) => !(room.config.excludeWinners && room.excluded.has(p.id))
   );
 
   if (pool.length === 0) {
-    pushEvent('system', 'ما فيه مشاركين مؤهلين للسحب.');
-    io.emit('draw:empty');
+    pushEvent(room, 'system', 'ما فيه مشاركين مؤهلين للسحب.');
+    io.to(room.id).emit('draw:empty');
     return;
   }
 
   const winner = pool[randomInt(0, pool.length)];
-  state.winner = winner;
-  state.winnerMessages = [];
+  room.winner = winner;
+  room.winnerMessages = [];
 
-  state.history.unshift({ ...winner, wonAt: Date.now() });
-  if (state.history.length > 50) state.history.pop();
-  store.saveWinner(winner).catch((err) => console.error('تعذّر حفظ الفائز:', err.message));
+  room.history.unshift({ ...winner, wonAt: Date.now() });
+  if (room.history.length > 50) room.history.pop();
+  store.saveWinner(room.id, winner).catch((err) => console.error('تعذّر حفظ الفائز:', err.message));
 
-  if (state.config.excludeWinners) {
-    state.excluded.add(winner.id);
-    state.participants.delete(winner.id);
+  if (room.config.excludeWinners) {
+    room.excluded.add(winner.id);
+    room.participants.delete(winner.id);
+    room.removedWinners = room.removedWinners.filter((p) => p.id !== winner.id);
+    room.removedWinners.push(winner);
+    if (room.removedWinners.length > 100) room.removedWinners.shift();
   }
 
-  io.emit('winner', {
+  io.to(room.id).emit('winner', {
     winner,
-    history: state.history,
-    participants: [...state.participants.values()],
+    history: room.history,
+    participants: [...room.participants.values()],
   });
-  pushEvent('winner', `الفائز: ${winner.name}${winner.handle ? ` (@${winner.handle})` : ''}`, {
+  pushEvent(room, 'winner', `الفائز: ${winner.name}${winner.handle ? ` (@${winner.handle})` : ''}`, {
     handle: winner.handle,
     avatar: winner.avatar,
   });
 }
 
-function backToList() {
-  state.winner = null;
-  state.winnerMessages = [];
-  io.emit('winner:clear');
+function backToList(room) {
+  room.winner = null;
+  room.winnerMessages = [];
+  io.to(room.id).emit('winner:clear');
 }
 
-function clearParticipants() {
-  state.participants.clear();
-  fullNotified = false;
-  io.emit('participants:clear');
-  pushEvent('system', 'تم مسح قائمة المشاركين.');
+function clearParticipants(room) {
+  room.participants.clear();
+  room.fullNotified = false;
+  io.to(room.id).emit('participants:clear');
+  pushEvent(room, 'system', 'تم مسح قائمة المشاركين.');
 }
 
-/* ---------------------------------------------------------------
-   تصدير CSV
---------------------------------------------------------------- */
+/* ─────────── عند إلغاء خيار الاستبعاد ─────────── */
 
-app.get('/api/participants.csv', (req, res) => {
+function readmitWinners(room) {
+  room.excluded.clear();
+
+  const back = room.removedWinners.filter((p) => !room.participants.has(p.id));
+  room.removedWinners = [];
+  if (back.length === 0) {
+    pushEvent(room, 'system', 'الفائزون السابقون صاروا مؤهّلين للسحب مرة أخرى.');
+    return;
+  }
+
+  let added = 0;
+  back.forEach((person) => {
+    if (room.participants.size >= room.config.maxParticipants) return;
+    addParticipant(room, {
+      id: person.id, handle: person.handle, name: person.name, avatar: person.avatar,
+    }, ' (فائز سابق)');
+    added += 1;
+  });
+
+  pushEvent(room, 'system', `أُعيد ${added} من الفائزين السابقين إلى القائمة.`);
+}
+
+/* ─────────── واجهات HTTP ─────────── */
+
+app.get('/api/participants.csv', async (req, res) => {
+  const room = await getRoom(req.query.room);
   const rows = [['#', 'الاسم', 'المعرف', 'وقت التسجيل']];
-  for (const p of state.participants.values()) {
+  for (const p of room.participants.values()) {
     const t = new Date(p.joinedAt);
     const pad = (n) => String(n).padStart(2, '0');
     const stamp = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())} ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
@@ -634,134 +705,147 @@ app.get('/api/participants.csv', (req, res) => {
     .join('\r\n');
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="participants.csv"');
+  res.setHeader('Content-Disposition', `attachment; filename="participants-${room.id}.csv"`);
   res.send('\uFEFF' + csv);
 });
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   res.json({
-    status: state.status,
-    username: state.config.username,
-    participants: state.participants.size,
-    round: state.round,
+    ok: true,
+    activeRooms: rooms.size,
+    storage: await store.health(),
   });
 });
 
-/* ---------------------------------------------------------------
-   قناة الوقت الفعلي
---------------------------------------------------------------- */
+app.get('/api/room/new', (req, res) => {
+  res.json({ room: newRoomId() });
+});
+
+/* ─────────── قناة الوقت الفعلي ─────────── */
 
 io.on('connection', (socket) => {
-  socket.emit('state', snapshot());
+  const roomId = normalizeRoomId(socket.handshake.query.room);
+  socket.join(roomId);
 
-  socket.on('account:set', (payload = {}) => setAccount(payload.username));
-  socket.on('account:check', (payload = {}) => checkAccount(payload.username || state.config.username));
-  socket.on('connection:retry', () => {
-    stopConnection(true);
-    startConnection(state.config.username);
-  });
-  socket.on('stop', () => stopConnection());
+  const withRoom = (handler) => async (payload) => {
+    const room = await getRoom(roomId);
+    clearTimeout(room.idleTimer);
+    handler(room, payload || {});
+  };
 
-  socket.on('round:start', () => startRound());
-  socket.on('round:cancel', () => endRound(false));
-  socket.on('draw', () => {
-    if (state.round.active) endRound(false);
-    pickWinner();
-  });
-  socket.on('back', () => backToList());
-  socket.on('clear', () => clearParticipants());
-
-  socket.on('settings:set', (payload = {}) => {
-    const next = sanitizeConfig({ ...state.config, ...payload, sound: { ...state.config.sound, ...(payload.sound || {}) } }, state.config);
-    const keywordChanged = next.keyword !== state.config.keyword;
-    next.username = state.config.username; // الحساب يتغيّر من زره الخاص فقط
-    state.config = next;
-    saveConfig();
-    pushSettings();
-    if (keywordChanged) pushEvent('system', `كلمة الدخول صارت «${state.config.keyword}»`);
-    else pushEvent('system', 'تم حفظ الإعدادات.');
-    if (state.participants.size < state.config.maxParticipants) fullNotified = false;
+  getRoom(roomId).then((room) => {
+    clearTimeout(room.idleTimer);
+    socket.emit('state', snapshot(room));
   });
 
-  socket.on('overlay:set', (payload = {}) => {
+  socket.on('account:set', withRoom((room, p) => setAccount(room, p.username)));
+  socket.on('account:check', withRoom((room, p) => checkAccount(room, p.username || room.config.username)));
+  socket.on('connection:retry', withRoom((room) => {
+    stopConnection(room, true);
+    startConnection(room, room.config.username);
+  }));
+  socket.on('stop', withRoom((room) => stopConnection(room)));
+
+  socket.on('round:start', withRoom((room) => {
+    if (room.config.startMode === 'instant') {
+      if (room.round.active) endRound(room, false);
+      pickWinner(room);
+    } else {
+      startRound(room);
+    }
+  }));
+  socket.on('round:cancel', withRoom((room) => endRound(room, false)));
+  socket.on('draw', withRoom((room) => {
+    if (room.round.active) endRound(room, false);
+    pickWinner(room);
+  }));
+  socket.on('back', withRoom((room) => backToList(room)));
+  socket.on('clear', withRoom((room) => clearParticipants(room)));
+
+  socket.on('settings:set', withRoom((room, payload) => {
+    const wasExcluding = room.config.excludeWinners;
+    const next = sanitizeConfig(
+      { ...room.config, ...payload, sound: { ...room.config.sound, ...(payload.sound || {}) } },
+      room.config
+    );
+    const keywordChanged = next.keyword !== room.config.keyword;
+    next.username = room.config.username;   // الحساب يتغيّر من زره الخاص فقط
+    next.overlay = room.config.overlay;      // الشاشات لها قناتها الخاصة
+    room.config = next;
+    saveRoom(room);
+    pushSettings(room);
+
+    if (keywordChanged) pushEvent(room, 'system', `كلمة الدخول صارت «${room.config.keyword}»`);
+    else pushEvent(room, 'system', 'تم حفظ الإعدادات.');
+
+    // إلغاء الاستبعاد يعيد الفائزين السابقين فورًا
+    if (wasExcluding && !room.config.excludeWinners) readmitWinners(room);
+
+    if (room.participants.size < room.config.maxParticipants) room.fullNotified = false;
+  }));
+
+  socket.on('overlay:set', withRoom((room, payload) => {
     const screen = payload.screen === 'events' ? 'events' : 'players';
     const patch = payload.patch || {};
-    state.config.overlay[screen] = sanitizeOverlay(screen, { ...state.config.overlay[screen], ...patch }, state.config.overlay[screen]);
-    saveConfig();
-    io.emit('overlay', { screen, settings: state.config.overlay[screen] });
-  });
+    room.config.overlay[screen] = sanitizeOverlay(
+      screen,
+      { ...room.config.overlay[screen], ...patch },
+      room.config.overlay[screen]
+    );
+    saveRoom(room);
+    io.to(room.id).emit('overlay', { screen, settings: room.config.overlay[screen] });
+  }));
 
-  socket.on('history:clear', () => {
-    state.history = [];
-    state.excluded.clear();
-    store.clearWinners().catch((err) => console.error('تعذّر مسح السجل:', err.message));
-    io.emit('history:clear');
-    pushEvent('system', 'تم مسح سجل الفائزين وإعادة تأهيل الجميع.');
-  });
+  socket.on('history:clear', withRoom((room) => {
+    room.history = [];
+    room.excluded.clear();
+    room.removedWinners = [];
+    store.clearWinners(room.id).catch((err) => console.error('تعذّر مسح السجل:', err.message));
+    io.to(room.id).emit('history:clear');
+    pushEvent(room, 'system', 'تم مسح سجل الفائزين وإعادة تأهيل الجميع.');
+  }));
 
-  socket.on('events:clear', () => {
-    state.events = [];
-    io.emit('events:clear');
-  });
+  socket.on('events:clear', withRoom((room) => {
+    room.events = [];
+    io.to(room.id).emit('events:clear');
+  }));
 
-  // وضع التجربة: مشاركون وهميون لاختبار الواجهة بدون بث حقيقي
-  socket.on('demo', (payload = {}) => {
-    const room = Math.max(state.config.maxParticipants - state.participants.size, 0);
-    const count = Math.min(Math.max(parseInt(payload.count, 10) || 12, 1), Math.min(60, room));
+  socket.on('demo', withRoom((room, payload) => {
+    const space = Math.max(room.config.maxParticipants - room.participants.size, 0);
+    const count = Math.min(Math.max(parseInt(payload.count, 10) || 12, 1), Math.min(60, space));
     if (count === 0) {
-      pushEvent('system', 'القائمة ممتلئة — ما قدرت أضيف مشاركين تجريبيين.');
+      pushEvent(room, 'system', 'القائمة ممتلئة — ما قدرت أضيف مشاركين تجريبيين.');
       return;
     }
     const names = ['أحمد', 'سارة', 'خالد', 'نورة', 'يوسف', 'ليان', 'عبدالله', 'جنى', 'محمد', 'رهف', 'سلطان', 'دانة', 'فهد', 'مريم', 'تركي', 'شهد'];
     for (let i = 0; i < count; i += 1) {
-      const id = `demo-${Date.now()}-${i}`;
-      const participant = {
-        id,
+      addParticipant(room, {
+        id: `demo-${Date.now()}-${i}`,
         handle: `user${Math.floor(Math.random() * 9000) + 1000}`,
         name: `${names[i % names.length]} ${Math.floor(Math.random() * 99)}`,
         avatar: '',
-        order: state.participants.size + 1,
-        joinedAt: Date.now(),
-      };
-      state.participants.set(id, participant);
-      io.emit('participant:add', participant);
-      pushEvent('join', `${participant.name} انضم للقائمة (تجريبي)`, { handle: participant.handle });
+      }, ' (تجريبي)');
     }
-    if (state.participants.size >= state.config.maxParticipants) {
-      fullNotified = true;
-      pushEvent('system', `اكتمل العدد (${state.config.maxParticipants}) — التسجيل مقفل.`);
-      io.emit('join:closed', { reason: 'full' });
-      if (state.round.active && state.config.stopWhenFull) endRound(true);
-    }
+    if (room.participants.size >= room.config.maxParticipants) noticeFull(room);
+  }));
+
+  socket.on('disconnect', () => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const size = io.sockets.adapter.rooms.get(roomId)?.size || 0;
+    if (size === 0) scheduleIdleCleanup(room);
   });
 });
 
-/* ---------------------------------------------------------------
-   الإقلاع
---------------------------------------------------------------- */
+/* ─────────── الإقلاع ─────────── */
 
 async function boot() {
   await store.init();
 
-  const saved = await store.loadConfig();
-  if (saved) state.config = sanitizeConfig(saved);
-
-  // نرجّع سجل الفائزين حتى يظل الاستبعاد شغّالًا بعد إعادة التشغيل
-  const winners = await store.loadWinners(50);
-  state.history = winners;
-  winners.forEach((w) => state.excluded.add(w.id));
-
   server.listen(PORT, () => {
-    console.log(`\n  لوحة القرعة تعمل على  →  http://localhost:${PORT}`);
-    console.log(`  الشاشة الخضراء (كروما) →  http://localhost:${PORT}/green.html`);
-    console.log(`  فائزون محفوظون: ${winners.length}\n`);
-
-    if (state.config.username) {
-      startConnection(state.config.username);
-    } else {
-      state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
-      console.log('  ما فيه حساب محفوظ — اكتب اسم حسابك من الشريط العلوي في الموقع.\n');
-    }
+    console.log(`\n  لوحة القرعة تعمل على   →  http://localhost:${PORT}`);
+    console.log(`  شاشة اللاعبين          →  http://localhost:${PORT}/players.html`);
+    console.log(`  شاشة الأحداث           →  http://localhost:${PORT}/green.html\n`);
   });
 }
 
