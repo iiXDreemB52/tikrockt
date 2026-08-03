@@ -1,0 +1,210 @@
+/* ══════════════════════════════════════════════════════════
+   عُدّة الشاشات (players.html + green.html)
+
+   أوضاع الخلفية:
+     transparent → بدون خلفية إطلاقًا (تيك توك ستديو / OBS)
+     green|blue|magenta → لون صريح لمفتاح الكروما
+     dark → لوح داكن شبه شفاف يزيد وضوح النص فوق الفيديو
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  --paper:      #F4EEE2;
+  --paper-2:    #E7DDCA;
+  --paper-3:    #CDBFA6;
+  --graphite:   #16262B;
+  --graphite-2: #566E75;
+  --signal:     #C3301A;
+  --gold:       #FFC53D;
+  --live:       #1F9D62;
+
+  --size: 26px;
+  --bg: transparent;
+  --lift: 0 6px 14px rgba(0, 0, 0, .42);
+
+  --display: 'Baloo Bhaijaan 2', system-ui, sans-serif;
+  --body: 'Readex Pro', system-ui, sans-serif;
+  --mono: 'Space Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--body);
+  color: var(--graphite);
+}
+
+/* على خلفية لونية صريحة، الظل المنتشر يلوّث مفتاح الكروما */
+body[data-bg="green"], body[data-bg="blue"], body[data-bg="magenta"] {
+  --lift: 0 4px 0 rgba(0, 0, 0, .16);
+}
+body[data-bg="green"]   { --bg: #00ff00; }
+body[data-bg="blue"]    { --bg: #0000ff; }
+body[data-bg="magenta"] { --bg: #ff00ff; }
+body[data-bg="dark"]    { --bg: rgba(11, 30, 36, .88); }
+
+/* ══════════════ البطاقة الورقية ══════════════ */
+
+.paper {
+  background: var(--paper);
+  border-radius: 6px;
+  filter: drop-shadow(var(--lift));
+}
+
+/* تذكرة مثقوبة — الثقوب مقصوصة بقناع حتى تشتغل بدون خلفية */
+.ticket {
+  --notch: 11px;
+  --notch-inset: 34px;
+  position: relative;
+  background: var(--paper);
+  border-radius: 8px;
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at calc(100% - var(--notch-inset)) 0, transparent 97%, #000 100%),
+    radial-gradient(circle var(--notch) at calc(100% - var(--notch-inset)) 100%, transparent 97%, #000 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.ticket__perf {
+  position: absolute;
+  inset-block: calc(var(--notch) + 4px);
+  inset-inline-start: calc(var(--notch-inset) - 2px);
+  width: 0;
+  border-inline-start: 3px dashed var(--paper-3);
+  pointer-events: none;
+}
+.ticket-wrap { filter: drop-shadow(var(--lift)); }
+
+/* ══════════════ الختم ══════════════ */
+
+.stamp {
+  position: absolute;
+  padding: 3px 16px 6px;
+  border: 5px solid var(--signal);
+  border-radius: 6px;
+  color: var(--signal);
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: .06em;
+  mix-blend-mode: multiply;
+  transform: rotate(-12deg);
+}
+
+@keyframes stamp-in {
+  0%   { opacity: 0;   transform: rotate(-12deg) scale(3); }
+  60%  { opacity: 1;   transform: rotate(-12deg) scale(.9); }
+  100% { opacity: .93; transform: rotate(-12deg) scale(1); }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ══════════════ قصاصات الورق ══════════════ */
+
+.shreds { position: fixed; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; }
+.shreds i {
+  position: absolute;
+  top: -14vh;
+  width: 12px;
+  height: 20px;
+  animation: fall linear forwards;
+}
+@keyframes fall { to { transform: translateY(124vh) rotate(720deg); } }
+
+/* ══════════════ الصورة الرمزية ══════════════ */
+
+.face {
+  flex: none;
+  border-radius: 5px;
+  background: var(--paper-2);
+  color: var(--graphite-2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-family: var(--display);
+  font-weight: 800;
+}
+.face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+body.no-faces .face { display: none; }
+
+/* ══════════════ لوحة الضبط (لا تظهر في البث) ══════════════ */
+
+.panel {
+  position: fixed;
+  top: 12px;
+  inset-inline-start: 12px;
+  z-index: 9;
+  display: grid;
+  gap: 9px;
+  padding: 13px 15px;
+  border-radius: 8px;
+  background: #0F2A31;
+  color: #F4EEE2;
+  font-size: 12.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s;
+  box-shadow: 0 20px 40px -20px #000;
+}
+body.show-panel .panel { opacity: 1; pointer-events: auto; }
+
+.panel__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.panel__label { color: #7E97A0; min-width: 52px; }
+.panel button {
+  border: 1px solid #1D4952;
+  background: transparent;
+  color: #F4EEE2;
+  border-radius: 4px;
+  padding: 4px 11px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+.panel button:hover { border-color: #2C6270; }
+.panel button.is-on { border-color: var(--gold); color: var(--gold); }
+.panel input[type="range"] { accent-color: var(--gold); width: 100px; }
+.panel__hint { color: #55707A; font-size: 11px; font-family: var(--mono); }
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid #2C6270;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.is-on { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 197, 61, .35); }
+.swatch--clear {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%),
+    linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+}
+
+/* زر تفعيل الصوت — يظهر فقط إذا منع المتصفح التشغيل التلقائي */
+.audio-note {
+  position: fixed;
+  bottom: 12px;
+  inset-inline-start: 12px;
+  z-index: 9;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--signal);
+  color: var(--paper);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.audio-note[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shreds { display: none; }
+}
