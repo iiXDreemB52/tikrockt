@@ -1,0 +1,268 @@
+'use strict';
+
+/* ══════════════════════════════════════════════════════════
+   عُدّة مشتركة بين شاشات البث
+   الأولوية: قيم الرابط ← ثم الإعداد المحفوظ ← ثم الافتراضي
+   ══════════════════════════════════════════════════════════ */
+
+const Overlay = (() => {
+  const params = new URLSearchParams(location.search);
+
+  let screen = 'players';
+  let prefs = {};
+  let socket = null;
+  let onChange = () => {};
+  const locked = new Set();   // مفاتيح جاءت من الرابط — لا يغيّرها السيرفر
+
+  /* ── الإعدادات: الرابط يتقدّم على إعداد الموقع ── */
+
+  function coerce(raw, fallback) {
+    if (typeof fallback === 'number') return Number(raw);
+    if (typeof fallback === 'boolean') return raw !== '0' && raw !== 'false';
+    return raw;
+  }
+
+  function init(options) {
+    screen = options.screen;
+    prefs = { ...options.defaults };
+    socket = options.socket || null;
+    onChange = options.onChange || (() => {});
+
+    Object.keys(options.defaults).forEach((name) => {
+      if (!params.has(name)) return;
+      const value = coerce(params.get(name), options.defaults[name]);
+      if (value !== undefined && !Number.isNaN(value)) {
+        prefs[name] = value;
+        locked.add(name);
+      }
+    });
+
+    if (socket) {
+      socket.on('overlay', (payload) => {
+        if (payload && payload.screen === screen) fromServer(payload.settings);
+      });
+    }
+    return prefs;
+  }
+
+  // إعدادات وصلت من الموقع
+  function fromServer(settings) {
+    if (!settings) return;
+    let touched = false;
+    Object.entries(settings).forEach(([key, value]) => {
+      if (locked.has(key) || !(key in prefs)) return;
+      if (prefs[key] === value) return;
+      prefs[key] = value;
+      touched = true;
+    });
+    if (touched) onChange(prefs);
+  }
+
+  function set(name, value) {
+    if (prefs[name] === value) return value;
+    prefs[name] = value;
+    onChange(prefs);
+    if (socket) socket.emit('overlay:set', { screen, patch: { [name]: value } });
+    return value;
+  }
+
+  function get(name) { return prefs[name]; }
+  function all() { return { ...prefs }; }
+  function isLocked(name) { return locked.has(name); }
+
+  /* ── الخلفية ── */
+
+  const BACKGROUNDS = ['transparent', 'green', 'blue', 'magenta', 'dark'];
+
+  function applyBackground(mode) {
+    const value = BACKGROUNDS.includes(mode) ? mode : 'transparent';
+    document.body.dataset.bg = value;
+    document.querySelectorAll('[data-bg-option]').forEach((button) => {
+      button.classList.toggle('is-on', button.dataset.bgOption === value);
+    });
+    return value;
+  }
+
+  function applySize(px) {
+    document.documentElement.style.setProperty('--size', `${px}px`);
+    return px;
+  }
+
+  /* ── الصوت ── */
+
+  let ctx = null;
+  let muted = false;
+  let noteEl = null;
+
+  function context() {
+    if (!ctx) {
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (_) { return null; }
+    }
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+      if (ctx.state === 'suspended' && noteEl) noteEl.hidden = false;
+    } else if (noteEl) {
+      noteEl.hidden = true;
+    }
+    return ctx;
+  }
+
+  function setMuted(value) { muted = Boolean(value); }
+  function isMuted() { return muted; }
+
+  function tone(freq, start, duration, type = 'triangle', gain = 0.16) {
+    if (muted) return;
+    const c = context();
+    if (!c) return;
+    const at = c.currentTime + start;
+    const osc = c.createOscillator();
+    const amp = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, at);
+    amp.gain.setValueAtTime(0.0001, at);
+    amp.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0002), at + 0.015);
+    amp.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+    osc.connect(amp).connect(c.destination);
+    osc.start(at);
+    osc.stop(at + duration + 0.05);
+  }
+
+  function noise(start, duration, gain = 0.12, freq = 2200) {
+    if (muted) return;
+    const c = context();
+    if (!c) return;
+    const frames = Math.floor(c.sampleRate * duration);
+    const buffer = c.createBuffer(1, frames, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+
+    const src = c.createBufferSource();
+    src.buffer = buffer;
+    const filter = c.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = 0.7;
+    const amp = c.createGain();
+    amp.gain.value = gain;
+    src.connect(filter).connect(amp).connect(c.destination);
+    src.start(c.currentTime + start);
+  }
+
+  const tick = () => tone(880, 0, 0.04, 'square', 0.05);
+  const blip = () => tone(660, 0, 0.07, 'triangle', 0.05);
+  const urgent = () => tone(1200, 0, 0.08, 'square', 0.07);
+
+  function victory() {
+    if (muted) return;
+    const c = context();
+    if (!c) return;
+
+    const boom = c.createOscillator();
+    const boomAmp = c.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(150, c.currentTime);
+    boom.frequency.exponentialRampToValueAtTime(48, c.currentTime + 0.7);
+    boomAmp.gain.setValueAtTime(0.3, c.currentTime);
+    boomAmp.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.8);
+    boom.connect(boomAmp).connect(c.destination);
+    boom.start();
+    boom.stop(c.currentTime + 0.85);
+
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      tone(f, i * 0.1, 0.42, 'triangle', 0.2);
+      tone(f * 2, i * 0.1, 0.28, 'square', 0.05);
+    });
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f) => tone(f, 0.46, 1.5, 'triangle', 0.14));
+
+    noise(0.02, 0.35, 0.09, 3200);
+    noise(0.44, 1.5, 0.11, 2200);
+  }
+
+  function bindAudioNote(element) {
+    noteEl = element;
+    if (!noteEl) return;
+    noteEl.addEventListener('click', () => {
+      context();
+      noteEl.hidden = true;
+      tone(880, 0, 0.1);
+    });
+    document.addEventListener('pointerdown', () => { context(); }, { once: true });
+  }
+
+  /* ── القصاصات ── */
+
+  function shreds(container, count = 90) {
+    if (!container) return;
+    const colors = ['#F4EEE2', '#FFC53D', '#C3301A', '#E7DDCA', '#CDBFA6'];
+    const pieces = document.createDocumentFragment();
+    for (let i = 0; i < count; i += 1) {
+      const bit = document.createElement('i');
+      bit.style.left = `${Math.random() * 100}%`;
+      bit.style.background = colors[i % colors.length];
+      bit.style.animationDuration = `${2.2 + Math.random() * 2}s`;
+      bit.style.animationDelay = `${Math.random() * 0.7}s`;
+      bit.style.height = `${12 + Math.random() * 16}px`;
+      bit.style.width = `${7 + Math.random() * 7}px`;
+      pieces.appendChild(bit);
+    }
+    container.replaceChildren(pieces);
+    setTimeout(() => container.replaceChildren(), 5400);
+  }
+
+  /* ── اللوحة: تُفتح وتُغلق بزر V ── */
+
+  function openPanel()  { document.body.classList.add('show-panel'); }
+  function closePanel() { document.body.classList.remove('show-panel'); }
+  function togglePanel(){ document.body.classList.toggle('show-panel'); }
+
+  function keyPanel() {
+    document.addEventListener('keydown', (event) => {
+      const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName);
+      // نستخدم code حتى يشتغل مع لوحة المفاتيح العربية أيضًا
+      if (event.code === 'KeyV' && !typing) { event.preventDefault(); togglePanel(); }
+      if (event.key === 'Escape') closePanel();
+    });
+
+    document.querySelectorAll('[data-panel-close]').forEach((button) => {
+      button.addEventListener('click', closePanel);
+    });
+  }
+
+  /* ── مساعدات ── */
+
+  const arabicNumber = (n) => Number(n).toLocaleString('ar-EG');
+
+  function initials(name) {
+    const clean = String(name || '').trim();
+    return clean ? [...clean][0] : '؟';
+  }
+
+  function face(node, person) {
+    node.replaceChildren();
+    if (person && person.avatar) {
+      const img = document.createElement('img');
+      img.src = person.avatar;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { node.textContent = initials(person.name); });
+      node.appendChild(img);
+    } else {
+      node.textContent = initials(person && person.name);
+    }
+  }
+
+  function toggleButton(button, isOn, onLabel, offLabel) {
+    button.classList.toggle('is-on', isOn);
+    if (onLabel) button.textContent = isOn ? onLabel : offLabel;
+  }
+
+  return {
+    init, get, set, all, isLocked, fromServer,
+    applyBackground, applySize, BACKGROUNDS,
+    tone, noise, tick, blip, urgent, victory, setMuted, isMuted, bindAudioNote, context,
+    shreds, keyPanel, openPanel, closePanel, togglePanel,
+    arabicNumber, initials, face, toggleButton,
+  };
+})();
