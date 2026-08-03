@@ -134,17 +134,26 @@ const Overlay = (() => {
     osc.stop(at + duration + 0.05);
   }
 
+  const noiseBufferCache = new Map();
+
+  function noiseBuffer(c, duration) {
+    const key = `${c.sampleRate}:${duration}`;
+    let buffer = noiseBufferCache.get(key);
+    if (buffer) return buffer;
+    const frames = Math.floor(c.sampleRate * duration);
+    buffer = c.createBuffer(1, frames, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+    noiseBufferCache.set(key, buffer);
+    return buffer;
+  }
+
   function noise(start, duration, gain = 0.12, freq = 2200) {
     if (muted) return;
     const c = context();
     if (!c) return;
-    const frames = Math.floor(c.sampleRate * duration);
-    const buffer = c.createBuffer(1, frames, c.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-
     const src = c.createBufferSource();
-    src.buffer = buffer;
+    src.buffer = noiseBuffer(c, duration);
     const filter = c.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.value = freq;
@@ -198,8 +207,9 @@ const Overlay = (() => {
 
   /* ── القصاصات ── */
 
-  function shreds(container, count = 90) {
+  function shreds(container, count = 55) {
     if (!container) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const colors = ['#F4EEE2', '#FFC53D', '#C3301A', '#E7DDCA', '#CDBFA6'];
     const pieces = document.createDocumentFragment();
     for (let i = 0; i < count; i += 1) {
