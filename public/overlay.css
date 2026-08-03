@@ -51,7 +51,7 @@ body[data-bg="dark"]    { --bg: rgba(11, 30, 36, .88); }
 .paper {
   background: var(--paper);
   border-radius: 6px;
-  filter: drop-shadow(var(--lift));
+  box-shadow: var(--lift);
 }
 
 /* تذكرة مثقوبة — الثقوب مقصوصة بقناع حتى تشتغل بدون خلفية */
@@ -112,6 +112,7 @@ body[data-bg="dark"]    { --bg: rgba(11, 30, 36, .88); }
   width: 12px;
   height: 20px;
   animation: fall linear forwards;
+  will-change: transform;
 }
 @keyframes fall { to { transform: translateY(124vh) rotate(720deg); } }
 
