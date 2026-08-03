@@ -29,6 +29,7 @@ const el = {
   countdownNum: $('countdown-num'),
   countdownFill: $('countdown-fill'),
   btnCancel: $('btn-cancel'),
+  btnNow: $('btn-now'),
   accountPill: $('account-pill'),
   accountName: $('account-name'),
   accountForm: $('account-form'),
@@ -155,6 +156,8 @@ function updateDrawButton() {
   const busy = drawing || round.active;
   el.btnDraw.disabled = busy || participants.length === 0;
   el.drawLabel.textContent = round.active ? 'جارٍ العد' : 'ابدأ';
+  el.btnNow.disabled = drawing || participants.length === 0;
+  el.btnNow.classList.toggle('is-hidden', config.countdownSeconds === 0);
   el.drawHint.textContent = config.countdownSeconds > 0
     ? `عدّ تنازلي ${arabicNumber(config.countdownSeconds)} ثانية ثم يُسحب الفائز`
     : 'سحب فوري بدون عد تنازلي';
@@ -600,6 +603,14 @@ function requestStart() {
 
 el.btnDraw.addEventListener('click', requestStart);
 el.btnCancel.addEventListener('click', () => socket.emit('round:cancel'));
+
+el.btnNow.addEventListener('click', () => {
+  if (drawing) return;
+  if (participants.length === 0) { toast('لا يوجد مشاركون بعد'); return; }
+  beep(false);
+  el.btnNow.disabled = true;
+  socket.emit('draw');
+});
 
 el.btnRedraw.addEventListener('click', () => {
   showList();
