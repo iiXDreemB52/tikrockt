@@ -105,7 +105,7 @@ body[data-bg="dark"]    { --bg: rgba(11, 30, 36, .88); }
 
 /* ══════════════ قصاصات الورق ══════════════ */
 
-.shreds { position: fixed; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; }
+.shreds { position: fixed; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; contain: strict; }
 .shreds i {
   position: absolute;
   top: -14vh;
