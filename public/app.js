@@ -42,6 +42,7 @@ const el = {
   eventsList: $('events-list'),
   eventsFilters: $('events-filters'),
   modal: $('settings-modal'),
+  screensModal: $('screens-modal'),
   toast: $('toast'),
 };
 
@@ -422,6 +423,10 @@ function paintSettings() {
 
 function applyConfig(next) {
   config = { ...config, ...next, sound: { ...config.sound, ...(next.sound || {}) } };
+  if (next.overlay) {
+    overlayConfig = { players: { ...next.overlay.players }, events: { ...next.overlay.events } };
+    paintScreens();
+  }
   el.hintKeyword.textContent = config.keyword;
   el.emptyKeyword.textContent = config.keyword;
   el.countdownKeyword.textContent = config.keyword;
@@ -461,6 +466,80 @@ setFields.volume.addEventListener('input', () => {
 $('btn-clear-list').addEventListener('click', () => socket.emit('clear'));
 $('btn-clear-history').addEventListener('click', () => socket.emit('history:clear'));
 $('btn-demo').addEventListener('click', () => socket.emit('demo', { count: 12 }));
+
+/* ═══════════ ضبط شاشات البث ═══════════ */
+
+let overlayConfig = { players: {}, events: {} };
+
+function paintScreens() {
+  document.querySelectorAll('.sheet[data-screen]').forEach((sheet) => {
+    const values = overlayConfig[sheet.dataset.screen] || {};
+
+    sheet.querySelectorAll('.seg[data-key]').forEach((group) => {
+      const current = String(values[group.dataset.key]);
+      group.querySelectorAll('[data-value]').forEach((button) => {
+        button.classList.toggle('is-on', button.dataset.value === current);
+      });
+    });
+
+    sheet.querySelectorAll('input[data-key]').forEach((input) => {
+      const value = values[input.dataset.key];
+      if (value === undefined) return;
+      if (input.type === 'checkbox') {
+        input.checked = Boolean(value);
+      } else {
+        input.value = value;
+        const view = input.parentElement.querySelector('.range-view');
+        if (view) view.textContent = arabicNumber(value);
+      }
+    });
+  });
+}
+
+function sendOverlay(screen, key, value) {
+  overlayConfig[screen] = { ...overlayConfig[screen], [key]: value };
+  paintScreens();
+  socket.emit('overlay:set', { screen, patch: { [key]: value } });
+}
+
+document.querySelectorAll('.sheet[data-screen]').forEach((sheet) => {
+  const screen = sheet.dataset.screen;
+
+  sheet.querySelectorAll('.seg[data-key]').forEach((group) => {
+    group.addEventListener('click', (e) => {
+      const button = e.target.closest('[data-value]');
+      if (!button) return;
+      sendOverlay(screen, group.dataset.key, button.dataset.value);
+    });
+  });
+
+  sheet.querySelectorAll('input[data-key]').forEach((input) => {
+    const event = input.type === 'checkbox' ? 'change' : 'input';
+    input.addEventListener(event, () => {
+      const value = input.type === 'checkbox' ? input.checked : Number(input.value);
+      sendOverlay(screen, input.dataset.key, value);
+    });
+  });
+});
+
+function showSheet(name) {
+  document.querySelectorAll('.sheet[data-screen]').forEach((sheet) => {
+    sheet.classList.toggle('is-hidden', sheet.dataset.screen !== name);
+  });
+  document.querySelectorAll('#screens-tabs [data-tab]').forEach((tab) => {
+    tab.classList.toggle('is-on', tab.dataset.tab === name);
+  });
+  $('screens-open').setAttribute('href', name === 'events' ? '/green.html' : '/players.html');
+}
+
+$('screens-tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-tab]');
+  if (tab) showSheet(tab.dataset.tab);
+});
+
+$('btn-screens').addEventListener('click', () => { el.screensModal.hidden = false; paintScreens(); });
+$('screens-close').addEventListener('click', () => { el.screensModal.hidden = true; });
+$('screens-backdrop').addEventListener('click', () => { el.screensModal.hidden = true; });
 
 /* ═══════════ سجل الأحداث ═══════════ */
 
@@ -586,6 +665,11 @@ function initializeSocket() {
   socket.on('winner:clear', showList);
   socket.on('winner:message', addBubble);
 
+  socket.on('overlay', ({ screen, settings }) => {
+    overlayConfig[screen] = settings;
+    paintScreens();
+  });
+
   socket.on('event', addEvent);
   socket.on('events:clear', () => el.eventsList.replaceChildren());
   socket.on('history:clear', () => { renderRecent([]); toast('تم مسح سجل الفائزين'); });
@@ -630,6 +714,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'Space') { e.preventDefault(); if (!el.btnDraw.disabled) requestStart(); }
   if (e.key === 'Escape') {
+    if (!el.screensModal.hidden) { el.screensModal.hidden = true; return; }
     if (!el.modal.hidden) { closeSettings(); return; }
     if (!el.drawer.hidden) { el.drawer.hidden = true; return; }
     if (!el.stageWinner.hidden) { showList(); socket.emit('back'); }
