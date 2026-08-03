@@ -189,8 +189,8 @@
   }
 
   @keyframes card-in {
-    0%   { opacity: 0; transform: scale(.62) rotate(-3deg); }
-    100% { opacity: 1; transform: none; }
+    0%   { opacity: 0; transform: translateY(-7%) scale(.62) rotate(-3deg); }
+    100% { opacity: 1; transform: translateY(-7%); }
   }
 </style>
 </head>
@@ -259,7 +259,7 @@
     <button data-align="center">وسط</button>
     <button data-align="end">أسفل</button>
     <span class="panel__label">أقصى عدد</span>
-    <input type="range" id="p-max" min="0" max="40" step="1">
+    <input type="range" id="p-max" min="0" max="100" step="1">
     <span class="panel__hint" id="p-max-view">الكل</span>
   </div>
 
