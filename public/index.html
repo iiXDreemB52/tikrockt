@@ -106,6 +106,8 @@
         <span class="launch-btn__hint" id="draw-hint">عدّ تنازلي ٣٠ ثانية ثم يُسحب الفائز</span>
       </button>
 
+      <button class="launch-now" id="btn-now">اسحب الآن بدون عدّ</button>
+
       <div class="countdown is-hidden" id="countdown">
         <div class="countdown__row">
           <span class="countdown__num" id="countdown-num">٣٠</span>
@@ -157,18 +159,30 @@
   <header class="drawer__head">
     <h2 class="drawer__title">سجل الأحداث</h2>
     <div class="drawer__tools">
-      <a class="chip chip--accent" id="btn-green" href="/green.html" target="_blank" rel="noopener">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="1.8" y="2.8" width="12.4" height="9" rx="1.4"/><path d="M5.5 14h5"/>
-        </svg>
-        شاشة خضراء
-      </a>
       <button class="chip" id="btn-events-clear">مسح</button>
       <button class="chip chip--icon" id="btn-events-close" title="إغلاق">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
       </button>
     </div>
   </header>
+
+  <div class="screens">
+    <span class="screens__label">شاشات الكروما لـ OBS</span>
+    <div class="screens__links">
+      <a class="chip chip--accent" id="btn-players" href="/players.html" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="1.8" y="2.8" width="12.4" height="9" rx="1.4"/><path d="M5.5 14h5M4.6 6h6.8M4.6 9h4"/>
+        </svg>
+        اللاعبون والفائز
+      </a>
+      <a class="chip chip--accent" id="btn-green" href="/green.html" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2.6 4h10.8M2.6 8h10.8M2.6 12h6.6"/>
+        </svg>
+        سجل الأحداث
+      </a>
+    </div>
+  </div>
 
   <div class="drawer__filters" id="events-filters">
     <button class="tag is-on" data-filter="all">الكل</button>
