@@ -1064,3 +1064,45 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
   .sheet { grid-template-columns: 1fr; }
   .tabs { width: 100%; margin: 8px 0 0; }
 }
+
+/* ═══ سلوك زر ابدأ ═══ */
+
+.mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 9px;
+}
+.mode button {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--mute);
+  padding: 9px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.mode button:hover { border-color: var(--edge-2); color: var(--paper); }
+.mode button.is-on { border-color: var(--gold); color: var(--gold); background: rgba(255, 197, 61, .1); }
+
+/* ═══ رابط الشاشة ═══ */
+
+.modal__foot--stack { flex-direction: column; align-items: stretch; gap: 10px; }
+.link-row { display: flex; align-items: center; gap: 8px; }
+.link-row__input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 12px;
+  direction: ltr;
+  text-align: left;
+  outline: none;
+}
+.link-row__input:focus { border-color: var(--gold); }
