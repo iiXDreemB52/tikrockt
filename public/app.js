@@ -499,6 +499,11 @@ setFields.volume.addEventListener('input', () => {
 });
 
 $('btn-clear-list').addEventListener('click', () => socket.emit('clear'));
+$('btn-clear-list-quick').addEventListener('click', () => {
+  if (confirm('مسح كل قائمة المشاركين الحالية؟ ما ينرجّعون إلا يكتبون كلمة الدخول من جديد.')) {
+    socket.emit('clear');
+  }
+});
 $('btn-clear-history').addEventListener('click', () => socket.emit('history:clear'));
 $('btn-demo').addEventListener('click', () => socket.emit('demo', { count: 12 }));
 $('btn-demo-heavy').addEventListener('click', () => socket.emit('demo', { count: 50 }));
