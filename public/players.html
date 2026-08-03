@@ -29,12 +29,27 @@
   .stream-hint {
     flex: none;
     margin: 0;
-    font-size: calc(var(--size) * .46);
+    font-size: calc(var(--size) * .5);
     font-weight: 700;
-    color: var(--signal);
-    text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+    color: var(--graphite);
+    text-shadow:
+      0 0 6px var(--paper),
+      1px 0 var(--paper), -1px 0 var(--paper),
+      0 1px var(--paper), 0 -1px var(--paper);
   }
-  .stream-hint b { font-family: var(--display); font-weight: 800; }
+  .stream-hint b {
+    display: inline-block;
+    margin: 0 3px;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: calc(var(--size) * 1.55);
+    line-height: 1;
+    color: var(--signal);
+    text-shadow:
+      0 0 10px var(--paper),
+      1px 0 var(--paper), -1px 0 var(--paper),
+      0 1px var(--paper), 0 -1px var(--paper);
+  }
   body.no-hint .stream-hint { display: none; }
 
   .pill {
@@ -146,11 +161,18 @@
     inset: 0;
     z-index: 6;
     display: none;
-    place-items: center;
+    align-items: center;
+    justify-items: center;
     padding: 26px;
     pointer-events: none;
   }
   body.is-revealing .reveal { display: grid; }
+
+  /* مكان بطاقة الفائز — يُضبط من لوحة التحكم (V) */
+  body[data-winner-v="top"]    .reveal { align-items: start; }
+  body[data-winner-v="bottom"] .reveal { align-items: end; }
+  body[data-winner-h="start"]  .reveal { justify-items: start; }
+  body[data-winner-h="end"]    .reveal { justify-items: end; }
 
   .card {
     position: relative;
@@ -279,6 +301,16 @@
   </div>
 
   <div class="panel__row">
+    <span class="panel__label">مكان الفائز</span>
+    <button data-winner-v="top">أعلى</button>
+    <button data-winner-v="center">وسط</button>
+    <button data-winner-v="bottom">أسفل</button>
+    <button data-winner-h="start">يمين</button>
+    <button data-winner-h="center">وسط</button>
+    <button data-winner-h="end">يسار</button>
+  </div>
+
+  <div class="panel__row">
     <button id="p-faces">الصور</button>
     <button id="p-bar">العدّاد</button>
     <button id="p-hint">التلميح</button>
@@ -322,6 +354,8 @@ const prefs = Overlay.init({
     layout: 'grid',
     cols: 'auto',
     align: 'start',
+    winnerV: 'center',
+    winnerH: 'center',
     max: 0,
     faces: true,
     bar: true,
@@ -342,6 +376,8 @@ function applyAll(current) {
 
   document.body.dataset.layout = current.layout;
   document.body.dataset.align = current.align;
+  document.body.dataset.winnerV = current.winnerV;
+  document.body.dataset.winnerH = current.winnerH;
   document.documentElement.style.setProperty('--cols', current.cols === 'auto' ? 'auto-fill' : current.cols);
   document.body.classList.toggle('no-faces', !current.faces);
   document.body.classList.toggle('no-bar', !current.bar);
@@ -351,6 +387,8 @@ function applyAll(current) {
   markGroup('[data-layout]', 'layout', current.layout);
   markGroup('[data-cols]', 'cols', current.cols);
   markGroup('[data-align]', 'align', current.align);
+  markGroup('[data-winner-v]', 'winnerV', current.winnerV);
+  markGroup('[data-winner-h]', 'winnerH', current.winnerH);
 
   const size = document.getElementById('p-size');
   size.value = current.size;
@@ -578,6 +616,8 @@ document.querySelectorAll('[data-bg-option]').forEach((b) => b.addEventListener(
 document.querySelectorAll('[data-layout]').forEach((b) => b.addEventListener('click', () => Overlay.set('layout', b.dataset.layout)));
 document.querySelectorAll('[data-cols]').forEach((b) => b.addEventListener('click', () => Overlay.set('cols', b.dataset.cols)));
 document.querySelectorAll('[data-align]').forEach((b) => b.addEventListener('click', () => Overlay.set('align', b.dataset.align)));
+document.querySelectorAll('[data-winner-v]').forEach((b) => b.addEventListener('click', () => Overlay.set('winnerV', b.dataset.winnerV)));
+document.querySelectorAll('[data-winner-h]').forEach((b) => b.addEventListener('click', () => Overlay.set('winnerH', b.dataset.winnerH)));
 
 document.getElementById('p-size').addEventListener('input', (e) => Overlay.set('size', Number(e.target.value)));
 document.getElementById('p-max').addEventListener('input', (e) => Overlay.set('max', Number(e.target.value)));
