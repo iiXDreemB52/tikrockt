@@ -53,6 +53,7 @@ const el = {
   drawLabel: document.querySelector('.launch-btn__label'),
   drawHint: $('draw-hint'),
   btnRedraw: $('btn-redraw'),
+  btnProfile: $('btn-profile'),
   btnBack: $('btn-back'),
   countdown: $('countdown'),
   countdownNum: $('countdown-num'),
@@ -358,6 +359,14 @@ function showWinner(winner) {
   el.wName.textContent = winner.name;
   el.wHandle.textContent = winner.handle ? `@${winner.handle}` : '';
   paintAvatar(el.wAvatar, winner);
+  if (winner.handle) {
+    // فتح صفحة حساب الفائز على تيك توك؛ من هناك تقدر تضغط "رسالة" داخل تطبيقك
+    el.btnProfile.href = `https://www.tiktok.com/@${encodeURIComponent(winner.handle)}`;
+    el.btnProfile.classList.remove('is-hidden');
+  } else {
+    el.btnProfile.removeAttribute('href');
+    el.btnProfile.classList.add('is-hidden');
+  }
   el.thread.replaceChildren();
   el.threadWait.classList.remove('is-hidden');
   el.stageMain.hidden = true;
