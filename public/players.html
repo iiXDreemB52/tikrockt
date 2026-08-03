@@ -34,7 +34,7 @@
     border-radius: 8px;
     background: var(--paper);
     box-shadow: var(--lift);
-    font-size: calc(var(--size) * .5);
+    font-size: calc(var(--size) * .68);
     font-weight: 700;
     color: var(--graphite);
   }
@@ -44,7 +44,7 @@
     vertical-align: middle;
     font-family: var(--display);
     font-weight: 800;
-    font-size: calc(var(--size) * 1.4);
+    font-size: calc(var(--size) * 1.7);
     line-height: 1;
     color: var(--signal);
   }
@@ -62,7 +62,7 @@
     font-weight: 600;
   }
   .pill b { font-family: var(--display); font-size: calc(var(--size) * .92); font-weight: 800; }
-  .pill__label { color: var(--graphite-2); font-size: calc(var(--size) * .42); }
+  .pill__label { color: var(--graphite-2); font-size: calc(var(--size) * .58); font-weight: 700; }
 
   .pill--timer { margin-inline-start: auto; background: var(--gold); }
   .pill--timer.is-urgent { background: var(--signal); color: var(--paper); }
@@ -177,6 +177,7 @@
     max-width: 94vw;
     padding: 26px 40px 30px calc(var(--notch-inset) + 30px);
     text-align: start;
+    will-change: transform, opacity;
     animation: card-in .5s cubic-bezier(.15, 1.25, .35, 1) both;
   }
   .card__eyebrow {
@@ -539,11 +540,12 @@ function reveal(winner, seq) {
   paintWinner(winner);
   document.body.classList.add('is-revealing');
 
-  // نؤجّل الصوت والكونفيتي فريم واحد حتى تاخذ بطاقة الفائز رسمتها الأولى
-  // بدون ما تتزاحم مع كل هالشغل التزامني — هذا يقلل التقطيع لحظة الإعلان
+  // نؤجّل الصوت والكونفيتي حتى تاخذ بطاقة الفائز رسمتها الأولى، ونفرّق
+  // إنشاء قصاصات الورق (٣٠ عنصر DOM) على فريم مستقل عن الصوت — هذا يوزّع
+  // الحمل على أكثر من فريم بدل ما يتزاحم كله وقت ظهور الاسم فيصير تقطيع
   requestAnimationFrame(() => {
     Overlay.victory();
-    Overlay.shreds(shredsEl);
+    requestAnimationFrame(() => Overlay.shreds(shredsEl));
   });
 
   if (pending) {
@@ -630,7 +632,7 @@ document.getElementById('p-sound').addEventListener('click', () => {
 document.getElementById('p-test').addEventListener('click', () => {
   Overlay.context();
   Overlay.victory();
-  Overlay.shreds(shredsEl);
+  requestAnimationFrame(() => Overlay.shreds(shredsEl));
 });
 
 applyAll(prefs);
