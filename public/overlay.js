@@ -12,7 +12,7 @@ const Overlay = (() => {
   let prefs = {};
   let socket = null;
   let onChange = () => {};
-  const locked = new Set();   // مفاتيح جاءت من الرابط — لا يغيّرها السيرفر
+  const locked = new Set();   /* مفاتيح جاءت من الرابط — لا يغيّرها السيرفر */
 
   /* ── الإعدادات: الرابط يتقدّم على إعداد الموقع ── */
 
@@ -45,7 +45,7 @@ const Overlay = (() => {
     return prefs;
   }
 
-  // إعدادات وصلت من الموقع
+  /* إعدادات وصلت من الموقع */
   function fromServer(settings) {
     if (!settings) return;
     let touched = false;
@@ -68,7 +68,7 @@ const Overlay = (() => {
 
   function get(name) { return prefs[name]; }
 
-  // معرّف الغرفة يأتي من الرابط الذي ينسخه المستخدم من الموقع
+  /* معرّف الغرفة يأتي من الرابط الذي ينسخه المستخدم من الموقع */
   function room() {
     return String(params.get('room') || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32) || 'default';
   }
@@ -207,7 +207,7 @@ const Overlay = (() => {
 
   /* ── القصاصات ── */
 
-  function shreds(container, count = 55) {
+  function shreds(container, count = 30) {
     if (!container) return;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const colors = ['#F4EEE2', '#FFC53D', '#C3301A', '#E7DDCA', '#CDBFA6'];
@@ -235,7 +235,7 @@ const Overlay = (() => {
   function keyPanel() {
     document.addEventListener('keydown', (event) => {
       const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName);
-      // نستخدم code حتى يشتغل مع لوحة المفاتيح العربية أيضًا
+      /* نستخدم code حتى يشتغل مع لوحة المفاتيح العربية أيضًا */
       if (event.code === 'KeyV' && !typing) { event.preventDefault(); togglePanel(); }
       if (event.key === 'Escape') closePanel();
     });
