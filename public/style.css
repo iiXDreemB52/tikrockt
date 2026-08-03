@@ -1024,3 +1024,43 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
   color: var(--mute-2);
 }
 .screens__links { display: flex; flex-wrap: wrap; gap: 7px; }
+
+/* ═══ ضبط شاشات البث ═══ */
+
+.tabs { display: flex; gap: 6px; margin-inline-start: auto; margin-inline-end: 10px; }
+
+.sheet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 16px;
+}
+.sheet.is-hidden { display: none; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-2);
+  background: var(--ink);
+  color: var(--mute);
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: border-color .15s, color .15s;
+}
+.seg button:hover { border-color: var(--edge-2); color: var(--paper); }
+.seg button.is-on { border-color: var(--gold); color: var(--gold); background: rgba(255, 197, 61, .1); }
+
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input[type="range"] { flex: 1; }
+.range-view {
+  min-width: 42px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--gold);
+}
+
+@media (max-width: 620px) {
+  .sheet { grid-template-columns: 1fr; }
+  .tabs { width: 100%; margin: 8px 0 0; }
+}
