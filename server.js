@@ -685,15 +685,15 @@ async function boot() {
   winners.forEach((w) => state.excluded.add(w.id));
 
   server.listen(PORT, () => {
-    console.log(`\n  🚀 صاروخ الحظ يعمل على  →  http://localhost:${PORT}`);
-    console.log(`  🟩 الشاشة الخضراء       →  http://localhost:${PORT}/green.html`);
-    console.log(`  🏆 فائزون محفوظون: ${winners.length}\n`);
+    console.log(`\n  لوحة القرعة تعمل على  →  http://localhost:${PORT}`);
+    console.log(`  الشاشة الخضراء (كروما) →  http://localhost:${PORT}/green.html`);
+    console.log(`  فائزون محفوظون: ${winners.length}\n`);
 
     if (state.config.username) {
       startConnection(state.config.username);
     } else {
       state.statusDetail = 'أضف حساب تيك توك من الشريط العلوي';
-      console.log('  ℹ️  ما فيه حساب محفوظ — اكتب اسم حسابك من الشريط العلوي في الموقع.\n');
+      console.log('  ما فيه حساب محفوظ — اكتب اسم حسابك من الشريط العلوي في الموقع.\n');
     }
   });
 }
