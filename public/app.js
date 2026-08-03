@@ -2,6 +2,35 @@
 
 const $ = (id) => document.getElementById(id);
 
+/* ═══════════ الغرفة — تعزل بيانات كل مستخدم عن غيره ═══════════ */
+
+function resolveRoom() {
+  const fromUrl = new URLSearchParams(location.search).get('room');
+  const clean = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+
+  let id = clean(fromUrl);
+  if (!id) {
+    try { id = clean(localStorage.getItem('draw:room')); } catch (_) { id = ''; }
+  }
+  if (!id) {
+    const bytes = new Uint8Array(5);
+    (window.crypto || window.msCrypto).getRandomValues(bytes);
+    id = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  try { localStorage.setItem('draw:room', id); } catch (_) { /* التخزين غير متاح */ }
+
+  if (fromUrl !== id) {
+    const url = new URL(location.href);
+    url.searchParams.set('room', id);
+    history.replaceState(null, '', url);
+  }
+  return id;
+}
+
+const ROOM = resolveRoom();
+const screenUrl = (page) => `${location.origin}/${page}?room=${ROOM}`;
+
 const el = {
   stageMain: $('stage-main'),
   stageWinner: $('stage-winner'),
@@ -29,7 +58,7 @@ const el = {
   countdownNum: $('countdown-num'),
   countdownFill: $('countdown-fill'),
   btnCancel: $('btn-cancel'),
-  btnNow: $('btn-now'),
+  startMode: $('start-mode'),
   accountPill: $('account-pill'),
   accountName: $('account-name'),
   accountForm: $('account-form'),
@@ -155,13 +184,17 @@ function updateHint() {
 
 function updateDrawButton() {
   const busy = drawing || round.active;
+  const instant = config.startMode === 'instant' || config.countdownSeconds === 0;
+
   el.btnDraw.disabled = busy || participants.length === 0;
   el.drawLabel.textContent = round.active ? 'جارٍ العد' : 'ابدأ';
-  el.btnNow.disabled = drawing || participants.length === 0;
-  el.btnNow.classList.toggle('is-hidden', config.countdownSeconds === 0);
-  el.drawHint.textContent = config.countdownSeconds > 0
-    ? `عدّ تنازلي ${arabicNumber(config.countdownSeconds)} ثانية ثم يُسحب الفائز`
-    : 'سحب فوري بدون عد تنازلي';
+  el.drawHint.textContent = instant
+    ? 'يسحب الفائز فور الضغط'
+    : `عدّ تنازلي ${arabicNumber(config.countdownSeconds)} ثانية ثم يُسحب الفائز`;
+
+  el.startMode.querySelectorAll('[data-mode]').forEach((button) => {
+    button.classList.toggle('is-on', button.dataset.mode === config.startMode);
+  });
 }
 
 /* ═══════════ آخر الفائزين ═══════════ */
@@ -522,6 +555,17 @@ document.querySelectorAll('.sheet[data-screen]').forEach((sheet) => {
   });
 });
 
+function currentScreenPage() {
+  const active = document.querySelector('.sheet[data-screen]:not(.is-hidden)');
+  return active && active.dataset.screen === 'events' ? 'green.html' : 'players.html';
+}
+
+function paintScreenLink() {
+  const url = screenUrl(currentScreenPage());
+  $('screen-link').value = url;
+  $('screens-open').setAttribute('href', url);
+}
+
 function showSheet(name) {
   document.querySelectorAll('.sheet[data-screen]').forEach((sheet) => {
     sheet.classList.toggle('is-hidden', sheet.dataset.screen !== name);
@@ -529,7 +573,7 @@ function showSheet(name) {
   document.querySelectorAll('#screens-tabs [data-tab]').forEach((tab) => {
     tab.classList.toggle('is-on', tab.dataset.tab === name);
   });
-  $('screens-open').setAttribute('href', name === 'events' ? '/green.html' : '/players.html');
+  paintScreenLink();
 }
 
 $('screens-tabs').addEventListener('click', (e) => {
@@ -537,7 +581,23 @@ $('screens-tabs').addEventListener('click', (e) => {
   if (tab) showSheet(tab.dataset.tab);
 });
 
-$('btn-screens').addEventListener('click', () => { el.screensModal.hidden = false; paintScreens(); });
+$('btn-screens').addEventListener('click', () => {
+  el.screensModal.hidden = false;
+  paintScreens();
+  paintScreenLink();
+});
+
+$('screen-copy').addEventListener('click', async () => {
+  const input = $('screen-link');
+  input.select();
+  try {
+    await navigator.clipboard.writeText(input.value);
+    toast('تم نسخ الرابط');
+  } catch (_) {
+    document.execCommand('copy');
+    toast('تم نسخ الرابط');
+  }
+});
 $('screens-close').addEventListener('click', () => { el.screensModal.hidden = true; });
 $('screens-backdrop').addEventListener('click', () => { el.screensModal.hidden = true; });
 
@@ -589,6 +649,10 @@ el.eventsFilters.addEventListener('click', (e) => {
   });
 });
 
+$('btn-players').setAttribute('href', screenUrl('players.html'));
+$('btn-green').setAttribute('href', screenUrl('green.html'));
+$('csv-link').setAttribute('href', `/api/participants.csv?room=${ROOM}`);
+
 $('btn-events').addEventListener('click', () => { el.drawer.hidden = !el.drawer.hidden; });
 $('btn-events-close').addEventListener('click', () => { el.drawer.hidden = true; });
 $('btn-events-clear').addEventListener('click', () => socket.emit('events:clear'));
@@ -596,7 +660,7 @@ $('btn-events-clear').addEventListener('click', () => socket.emit('events:clear'
 /* ═══════════ السيرفر ═══════════ */
 
 function initializeSocket() {
-  socket = io();
+  socket = io({ query: { room: ROOM } });
 
   socket.on('connect', () => updateConn('connecting', 'جارٍ قراءة الحالة…'));
   socket.on('connect_error', () => updateConn('error', 'السيرفر غير متاح'));
@@ -688,12 +752,11 @@ function requestStart() {
 el.btnDraw.addEventListener('click', requestStart);
 el.btnCancel.addEventListener('click', () => socket.emit('round:cancel'));
 
-el.btnNow.addEventListener('click', () => {
-  if (drawing) return;
-  if (participants.length === 0) { toast('لا يوجد مشاركون بعد'); return; }
-  beep(false);
-  el.btnNow.disabled = true;
-  socket.emit('draw');
+el.startMode.addEventListener('click', (e) => {
+  const button = e.target.closest('[data-mode]');
+  if (!button) return;
+  socket.emit('settings:set', { startMode: button.dataset.mode });
+  toast(button.dataset.mode === 'instant' ? 'زر ابدأ يسحب فورًا' : 'زر ابدأ يبدأ العد التنازلي');
 });
 
 el.btnRedraw.addEventListener('click', () => {
