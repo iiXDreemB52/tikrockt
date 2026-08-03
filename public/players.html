@@ -31,7 +31,7 @@
     padding: 6px 15px 8px;
     border-radius: 6px;
     background: var(--paper);
-    filter: drop-shadow(var(--lift));
+    box-shadow: var(--lift);
     font-size: calc(var(--size) * .58);
     font-weight: 600;
   }
@@ -67,7 +67,7 @@
     padding: 8px 14px 9px 24px;
     border-radius: 5px;
     background: var(--paper);
-    filter: drop-shadow(var(--lift));
+    box-shadow: var(--lift);
     font-size: var(--size);
     font-weight: 600;
     line-height: 1.2;
@@ -118,7 +118,7 @@
     padding: 12px 22px 14px;
     border-radius: 6px;
     background: var(--paper);
-    filter: drop-shadow(var(--lift));
+    box-shadow: var(--lift);
     font-size: calc(var(--size) * .72);
     font-weight: 600;
     color: var(--graphite-2);
@@ -423,18 +423,19 @@ function runDraw(winner) {
   const steps = Math.max(20, Math.min(nodes.length * 2, 36));
   const start = Math.floor(Math.random() * nodes.length);
   let step = 0;
+  let prevNode = null;
 
   const hop = () => {
-    nodes.forEach((n) => n.classList.remove('is-spot'));
     const node = (steps - step) <= 1 ? target : nodes[(start + step) % nodes.length];
+    if (prevNode && prevNode !== node) prevNode.classList.remove('is-spot');
     node.classList.add('is-spot');
-    node.scrollIntoView({ block: 'nearest' });
+    prevNode = node;
     Overlay.tick();
     step += 1;
 
     if (step > steps) {
       setTimeout(() => {
-        nodes.forEach((n) => n.classList.remove('is-spot'));
+        if (prevNode) prevNode.classList.remove('is-spot');
         reveal(winner);
       }, 430);
       return;
