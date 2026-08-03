@@ -3,28 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🚀 صاروخ الحظ · سحب البث المباشر</title>
+<title>لوحة القرعة · سحب البث المباشر</title>
+<meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&family=Readex+Pro:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="starfield" aria-hidden="true"></div>
+<div class="board-bg" aria-hidden="true"></div>
 
 <!-- ══ الشريط العلوي ══ -->
 <header class="topbar">
   <div class="topbar__side">
-    <button class="chip" id="btn-events" title="سجل الأحداث">📜 <span>الأحداث</span></button>
-    <button class="chip" id="btn-settings" title="الإعدادات">⚙️ <span>الإعدادات</span></button>
+    <button class="chip" id="btn-events">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+        <path d="M2.5 4h11M2.5 8h11M2.5 12h7"/>
+      </svg>
+      <span>الأحداث</span>
+    </button>
+    <button class="chip" id="btn-settings">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+        <path d="M2 4.5h5M11 4.5h3M2 11.5h3M9 11.5h5"/>
+        <circle cx="9" cy="4.5" r="1.8"/><circle cx="7" cy="11.5" r="1.8"/>
+      </svg>
+      <span>الإعدادات</span>
+    </button>
   </div>
 
   <div class="account">
     <button class="account__pill" id="account-pill" title="اضغط لتغيير الحساب">
-      <span class="account__icon">🎬</span>
       <span class="account__name" id="account-name">أضف حسابك</span>
-      <span class="account__edit">تغيير</span>
+      <span class="account__edit">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M11.2 2.8a1.7 1.7 0 0 1 2.4 2.4L6 12.8 3 13.5l.7-3z"/>
+        </svg>
+        تغيير
+      </span>
     </button>
 
     <form class="account__form is-hidden" id="account-form" autocomplete="off">
@@ -36,109 +52,124 @@
   </div>
 
   <div class="topbar__side topbar__side--end">
-    <div class="conn-badge" id="conn-badge" title="حالة الاتصال بالبث المباشر">
-      <i class="conn-badge__dot"></i>
+    <div class="conn" id="conn-badge" title="حالة الاتصال بالبث">
+      <i class="conn__dot"></i>
       <span id="conn-text">—</span>
     </div>
   </div>
 </header>
 
-<!-- ══ تنبيه كلمة الدخول ══ -->
-<p class="join-hint" id="join-hint">
-  اكتب <b id="hint-keyword">بلعب</b> في الشات عشان يتسجل اسمك في القائمة
-  <span class="join-hint__closed is-hidden" id="hint-closed">· التسجيل مقفل الآن</span>
+<!-- ══ كلمة الدخول ══ -->
+<p class="hint" id="join-hint">
+  <span>اكتب</span>
+  <b class="hint__word" id="hint-keyword">بلعب</b>
+  <span>في الشات ليُسجَّل اسمك</span>
+  <span class="hint__closed is-hidden" id="hint-closed">التسجيل مقفل</span>
 </p>
 
 <!-- ══ الشاشة الرئيسية ══ -->
 <main class="stage" id="stage-main">
 
-  <section class="wall">
-    <header class="wall__head">
-      <div class="brand">
-        <span class="brand__rocket">🚀</span>
-        <div>
-          <h1 class="brand__title">صاروخ <span>الحظ</span></h1>
-          <p class="brand__sub">منصّة سحب مباشر لركّاب البث</p>
-        </div>
-      </div>
-
-      <div class="counter">
-        <span class="counter__num" id="count">٠</span>
-        <div class="counter__stack">
-          <span class="counter__label">راكب على متن الصاروخ</span>
-          <span class="counter__cap" id="count-cap">الحد الأقصى ١٠٠</span>
-        </div>
-      </div>
-
-      <div class="launch">
-        <button class="draw-btn draw-btn--gold" id="btn-draw">
-          <span class="draw-btn__flame" aria-hidden="true"></span>
-          <span class="draw-btn__text">🚀 ابدأ</span>
-          <span class="draw-btn__hint" id="draw-hint">عدّ تنازلي ٣٠ ثانية ثم يختار الفائز</span>
-        </button>
-
-        <div class="countdown is-hidden" id="countdown">
-          <div class="countdown__row">
-            <span class="countdown__num" id="countdown-num">٣٠</span>
-            <span class="countdown__unit">ثانية</span>
-            <button class="countdown__cancel" id="btn-cancel">إلغاء</button>
-          </div>
-          <div class="countdown__bar"><i id="countdown-fill"></i></div>
-          <p class="countdown__label">التسجيل مفتوح — اكتب <b id="countdown-keyword">بلعب</b></p>
-        </div>
-      </div>
-    </header>
-
-    <div class="tickets" id="tickets"></div>
+  <section class="board">
+    <div class="board__grid" id="tickets"></div>
 
     <div class="empty" id="empty">
-      <div class="empty__rocket">🚀</div>
-      <p class="empty__title">قاعدة الإطلاق فارغة</p>
-      <p class="empty__body">اطلب من المشاهدين كتابة <b id="empty-keyword">بلعب</b> في الشات للصعود على متن الصاروخ. كل اسم يظهر هنا مرة واحدة فقط.</p>
+      <svg viewBox="0 0 120 74" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M4 12h112v18a7 7 0 0 0 0 14v18H4V44a7 7 0 0 0 0-14z"/>
+        <path d="M36 14v46" stroke-dasharray="5 6"/>
+        <path d="M54 28h44M54 40h30" stroke-linecap="round"/>
+      </svg>
+      <p class="empty__title">اللوحة فاضية</p>
+      <p class="empty__body">اطلب من المشاهدين كتابة <b id="empty-keyword">بلعب</b> في شات البث، وبيظهر لك اسم كل واحد منهم هنا كتذكرة مرقّمة — مرة واحدة لكل شخص.</p>
     </div>
   </section>
+
+  <aside class="console">
+    <div class="tally">
+      <p class="label">المسجّلون</p>
+      <span class="tally__num" id="count">٠</span>
+      <div class="tally__foot">
+        <span class="tally__word">تذكرة على اللوحة</span>
+        <span class="tally__cap" id="count-cap">من ١٠٠</span>
+      </div>
+      <div class="tally__bar"><i id="tally-fill"></i></div>
+    </div>
+
+    <div class="recent" id="recent">
+      <p class="label">آخر الفائزين</p>
+      <ol class="recent__list" id="recent-list"></ol>
+    </div>
+
+    <div class="launch">
+      <button class="launch-btn" id="btn-draw">
+        <span class="launch-btn__label">ابدأ</span>
+        <span class="launch-btn__hint" id="draw-hint">عدّ تنازلي ٣٠ ثانية ثم يُسحب الفائز</span>
+      </button>
+
+      <div class="countdown is-hidden" id="countdown">
+        <div class="countdown__row">
+          <span class="countdown__num" id="countdown-num">٣٠</span>
+          <span class="countdown__unit">ثانية</span>
+          <button class="countdown__cancel" id="btn-cancel">إلغاء</button>
+        </div>
+        <div class="countdown__bar"><i id="countdown-fill"></i></div>
+        <p class="countdown__label">التسجيل مفتوح — <b id="countdown-keyword">بلعب</b></p>
+      </div>
+    </div>
+  </aside>
 </main>
 
 <!-- ══ شاشة الفائز ══ -->
-<main class="winner-stage" id="stage-winner" hidden>
-  <div class="stars-trail" id="confetti" aria-hidden="true"></div>
-  <div class="orbit-ring" aria-hidden="true"></div>
+<main class="winner" id="stage-winner" hidden>
+  <div class="winner__shreds" id="confetti" aria-hidden="true"></div>
 
-  <div class="winner-card">
-    <p class="winner-eyebrow">🚀 وصل إلى المدار أولًا</p>
-    <div class="winner-id">
-      <div class="avatar avatar--xl" id="w-avatar"></div>
+  <div class="winner__card">
+    <span class="winner__perf" aria-hidden="true"></span>
+    <span class="winner__stamp">فائز</span>
+
+    <div class="winner__id">
+      <div class="winner__avatar" id="w-avatar"></div>
       <div>
-        <h2 class="winner-name" id="w-name">—</h2>
-        <p class="winner-handle" id="w-handle"></p>
+        <p class="winner__eyebrow">تذكرة رابحة</p>
+        <h2 class="winner__name" id="w-name">—</h2>
+        <p class="winner__handle" id="w-handle"></p>
       </div>
     </div>
-    <div class="winner-actions">
-      <button class="btn btn--go" id="btn-redraw">🚀 إطلاق جديد</button>
-      <button class="btn btn--ghost" id="btn-back">العودة لقاعدة الإطلاق</button>
+
+    <div class="winner__actions">
+      <button class="btn btn--go" id="btn-redraw">سحب جديد</button>
+      <button class="btn btn--quiet" id="btn-back">رجوع للوحة</button>
     </div>
   </div>
 
-  <div class="thread">
+  <section class="thread">
     <header class="thread__head">
-      <span class="thread__title">📡 اتصال مباشر من القمرة</span>
-      <span class="thread__live"><i></i>يتابع</span>
+      <span>رسائل الفائز في الشات</span>
+      <span class="thread__live"><i></i>مباشر</span>
     </header>
     <div class="thread__body" id="thread"></div>
-    <p class="thread__wait" id="thread-wait">في انتظار أول إشارة من رائد الفضاء الفائز…</p>
-  </div>
+    <p class="thread__wait" id="thread-wait">بانتظار أول رسالة من الفائز…</p>
+  </section>
 </main>
 
-<!-- ══ لوحة الأحداث ══ -->
+<!-- ══ سجل الأحداث ══ -->
 <aside class="drawer" id="events-drawer" hidden>
   <header class="drawer__head">
-    <h2 class="drawer__title">📜 سجل الأحداث</h2>
+    <h2 class="drawer__title">سجل الأحداث</h2>
     <div class="drawer__tools">
-      <a class="chip chip--green" id="btn-green" href="/green.html" target="_blank" rel="noopener">🟩 شاشة خضراء</a>
+      <a class="chip chip--accent" id="btn-green" href="/green.html" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="1.8" y="2.8" width="12.4" height="9" rx="1.4"/><path d="M5.5 14h5"/>
+        </svg>
+        شاشة خضراء
+      </a>
       <button class="chip" id="btn-events-clear">مسح</button>
-      <button class="chip chip--x" id="btn-events-close" title="إغلاق">✕</button>
+      <button class="chip chip--icon" id="btn-events-close" title="إغلاق">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
     </div>
   </header>
+
   <div class="drawer__filters" id="events-filters">
     <button class="tag is-on" data-filter="all">الكل</button>
     <button class="tag" data-filter="join">انضمام</button>
@@ -146,6 +177,7 @@
     <button class="tag" data-filter="round">الجولات</button>
     <button class="tag" data-filter="connection">الاتصال</button>
   </div>
+
   <div class="drawer__body" id="events-list"></div>
 </aside>
 
@@ -154,61 +186,70 @@
   <div class="modal__backdrop" id="settings-backdrop"></div>
   <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <header class="modal__head">
-      <h2 class="modal__title" id="settings-title">⚙️ إعدادات السحب</h2>
-      <button class="chip chip--x" id="settings-close" title="إغلاق">✕</button>
+      <h2 class="modal__title" id="settings-title">إعدادات السحب</h2>
+      <button class="chip chip--icon" id="settings-close" title="إغلاق">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
     </header>
 
     <div class="modal__body">
       <div class="field">
         <label for="set-keyword">كلمة الدخول في الشات</label>
         <input id="set-keyword" type="text" maxlength="40" spellcheck="false">
-        <small>اللي يكتبها المشاهد عشان يتسجل. الافتراضي: بلعب</small>
+        <small>الكلمة التي يكتبها المشاهد ليُسجَّل. الافتراضي: بلعب</small>
       </div>
 
       <div class="field">
         <label for="set-match">طريقة المطابقة</label>
         <select id="set-match">
           <option value="contains">تكفي الكلمة داخل الرسالة</option>
-          <option value="exact">لازم الرسالة تكون الكلمة فقط</option>
+          <option value="exact">الرسالة كلها الكلمة فقط</option>
         </select>
+        <small>«تكفي داخل الرسالة» أسهل على المشاهدين.</small>
       </div>
 
       <div class="field">
         <label for="set-max">عدد المشاركين المسموح</label>
         <input id="set-max" type="number" min="1" max="5000" step="1">
-        <small>يقفل التسجيل تلقائيًا عند الوصول لهذا العدد.</small>
+        <small>يُقفل التسجيل تلقائيًا عند بلوغ العدد.</small>
       </div>
 
       <div class="field">
         <label for="set-countdown">مدة العد التنازلي (ثانية)</label>
         <input id="set-countdown" type="number" min="0" max="900" step="1">
-        <small>يظهر تحت زر «ابدأ». صفر = سحب فوري بدون عد.</small>
+        <small>تظهر تحت زر «ابدأ». صفر = سحب فوري.</small>
       </div>
 
       <div class="field field--wide">
-        <label class="switch"><input type="checkbox" id="set-autodraw"><span></span>اسحب الفائز تلقائيًا بعد نهاية العد</label>
-        <label class="switch"><input type="checkbox" id="set-roundonly"><span></span>اقبل التسجيل فقط أثناء العد التنازلي</label>
-        <label class="switch"><input type="checkbox" id="set-stopfull"><span></span>أنهِ العد فورًا عند اكتمال العدد</label>
-        <label class="switch"><input type="checkbox" id="set-exclude"><span></span>استبعد من فاز سابقًا من السحوبات الجاية</label>
+        <p class="label">سلوك الجولة</p>
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="set-autodraw"><span></span>اسحب الفائز تلقائيًا بعد انتهاء العد</label>
+          <label class="switch"><input type="checkbox" id="set-roundonly"><span></span>اقبل التسجيل أثناء العد التنازلي فقط</label>
+          <label class="switch"><input type="checkbox" id="set-stopfull"><span></span>أنهِ العد فورًا عند اكتمال العدد</label>
+          <label class="switch"><input type="checkbox" id="set-exclude"><span></span>استبعد من فاز سابقًا من السحوبات القادمة</label>
+        </div>
       </div>
 
       <div class="field field--wide">
-        <label class="switch"><input type="checkbox" id="set-sound"><span></span>المؤثرات الصوتية</label>
+        <p class="label">الصوت</p>
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="set-sound"><span></span>المؤثرات الصوتية</label>
+        </div>
         <label for="set-volume">مستوى الصوت</label>
         <input id="set-volume" type="range" min="0" max="1" step="0.05">
       </div>
 
-      <div class="field field--wide danger-row">
-        <button class="btn btn--ghost" id="btn-clear-list">مسح قائمة المشاركين</button>
-        <button class="btn btn--ghost" id="btn-clear-history">مسح سجل الفائزين</button>
-        <button class="btn btn--ghost" id="btn-demo">إضافة ١٢ مشاركًا تجريبيًا</button>
-        <a class="btn btn--ghost" href="/api/participants.csv">تنزيل القائمة CSV</a>
+      <div class="field field--wide tools">
+        <button class="btn btn--dark" id="btn-clear-list">مسح قائمة المشاركين</button>
+        <button class="btn btn--dark" id="btn-clear-history">مسح سجل الفائزين</button>
+        <button class="btn btn--dark" id="btn-demo">إضافة ١٢ مشاركًا تجريبيًا</button>
+        <a class="btn btn--dark" href="/api/participants.csv">تنزيل القائمة CSV</a>
       </div>
     </div>
 
     <footer class="modal__foot">
       <span class="modal__note" id="settings-note"></span>
-      <button class="btn btn--go" id="settings-save">حفظ الإعدادات</button>
+      <button class="modal__save" id="settings-save">حفظ الإعدادات</button>
     </footer>
   </div>
 </div>
