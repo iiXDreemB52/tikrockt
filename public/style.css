@@ -94,7 +94,7 @@ button { cursor: pointer; }
 
 .topbar {
   position: relative;
-  z-index: 20;
+  z-index: 35;
   flex: none;
   height: var(--topbar-h);
   display: grid;
@@ -587,7 +587,7 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
   grid-template-rows: auto auto;
   align-content: center;
   gap: 18px;
-  padding: 26px;
+  padding: calc(var(--topbar-h) + 24px) 26px 26px;
   background:
     radial-gradient(90% 70% at 50% 0%, rgba(255, 197, 61, .13), transparent 62%),
     var(--ink);
@@ -994,3 +994,33 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
 }
 
 .recent__item--empty { color: var(--mute-2); font-size: 12.5px; border-bottom: 0; }
+
+/* ═══ زر السحب الفوري ═══ */
+
+.launch-now {
+  width: 100%;
+  margin-top: 9px;
+  padding: 10px 14px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 500;
+  transition: border-color .15s, color .15s;
+}
+.launch-now:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.launch-now:disabled { opacity: .35; }
+
+/* ═══ روابط شاشات الكروما ═══ */
+
+.screens { padding: 12px 16px; border-bottom: 1px solid var(--edge); }
+.screens__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  color: var(--mute-2);
+}
+.screens__links { display: flex; flex-wrap: wrap; gap: 7px; }
