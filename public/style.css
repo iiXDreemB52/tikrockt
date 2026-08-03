@@ -503,6 +503,13 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
 
 .launch { margin-top: 0; }
 
+.launch__clear {
+  width: 100%;
+  margin-bottom: 9px;
+  text-align: center;
+  font-size: 12px;
+}
+
 .launch-btn {
   position: relative;
   width: 100%;
@@ -897,7 +904,9 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
 .field input:focus, .field select:focus { border-color: var(--gold); }
 .field input[type="range"] { accent-color: var(--gold); }
 
-.switches { display: grid; gap: 11px; }
+.switches { display: grid; gap: 14px; }
+.switch-item { display: flex; flex-direction: column; gap: 4px; }
+.switch-item small { padding-inline-start: 49px; }
 .switch { display: flex; align-items: center; gap: 11px; font-size: 13.5px; }
 .switch input { position: absolute; opacity: 0; pointer-events: none; }
 .switch span {
