@@ -7,6 +7,7 @@ const el = {
   stageWinner: $('stage-winner'),
   count: $('count'),
   countCap: $('count-cap'),
+  tallyFill: $('tally-fill'),
   tickets: $('tickets'),
   empty: $('empty'),
   emptyKeyword: $('empty-keyword'),
@@ -20,6 +21,7 @@ const el = {
   wName: $('w-name'),
   wHandle: $('w-handle'),
   btnDraw: $('btn-draw'),
+  drawLabel: document.querySelector('.launch-btn__label'),
   drawHint: $('draw-hint'),
   btnRedraw: $('btn-redraw'),
   btnBack: $('btn-back'),
@@ -32,8 +34,9 @@ const el = {
   accountForm: $('account-form'),
   accountInput: $('account-input'),
   accountCancel: $('account-cancel'),
-  connBadge: $('conn-badge'),
+  conn: $('conn-badge'),
   connText: $('conn-text'),
+  recentList: $('recent-list'),
   drawer: $('events-drawer'),
   eventsList: $('events-list'),
   eventsFilters: $('events-filters'),
@@ -64,7 +67,7 @@ let config = {
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const arabicNumber = (n) => Number(n).toLocaleString('ar-EG');
 
-/* ═══════════ أدوات صغيرة ═══════════ */
+/* ═══════════ أدوات ═══════════ */
 
 let toastTimer = null;
 function toast(message) {
@@ -79,54 +82,70 @@ function initials(name) {
   return clean ? [...clean][0] : '؟';
 }
 
-function avatarMarkup(p) {
-  if (!p.avatar) return initials(p.name);
-  return `<img src="${p.avatar}" alt="" referrerpolicy="no-referrer" loading="lazy"
-            onerror="this.replaceWith(document.createTextNode('${initials(p.name).replace(/'/g, '')}'))">`;
+function paintAvatar(node, person) {
+  node.replaceChildren();
+  if (person.avatar) {
+    const img = document.createElement('img');
+    img.src = person.avatar;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => { node.textContent = initials(person.name); });
+    node.appendChild(img);
+  } else {
+    node.textContent = initials(person.name);
+  }
 }
 
 /* ═══════════ التذاكر ═══════════ */
 
-function ticketNode(p) {
+function stubNode(p) {
   const node = document.createElement('article');
-  node.className = 'ticket';
+  node.className = 'stub';
   node.dataset.id = p.id;
   node.innerHTML = `
-    <span class="avatar">${avatarMarkup(p)}</span>
-    <div class="ticket__meta">
-      <div class="ticket__name"></div>
-      <div class="ticket__handle"></div>
+    <span class="stub__perf"></span>
+    <span class="stub__no"></span>
+    <span class="stub__avatar"></span>
+    <div class="stub__meta">
+      <div class="stub__name"></div>
+      <div class="stub__handle"></div>
     </div>
-    <span class="ticket__serial">${String(p.order).padStart(3, '0')}</span>`;
-  node.querySelector('.ticket__name').textContent = p.name;
-  node.querySelector('.ticket__handle').textContent = p.handle ? `@${p.handle}` : '';
+    <span class="stub__stamp">فائز</span>`;
+
+  node.querySelector('.stub__no').textContent = String(p.order).padStart(3, '0');
+  node.querySelector('.stub__name').textContent = p.name;
+  node.querySelector('.stub__handle').textContent = p.handle ? `@${p.handle}` : '';
+  paintAvatar(node.querySelector('.stub__avatar'), p);
   return node;
 }
 
 function renderAll() {
-  el.tickets.replaceChildren(...participants.map(ticketNode));
+  el.tickets.replaceChildren(...participants.map(stubNode));
   refreshCounter();
 }
 
-function addTicket(p) {
+function addStub(p) {
   participants.push(p);
-  el.tickets.prepend(ticketNode(p));
+  el.tickets.prepend(stubNode(p));
   refreshCounter();
   joinTone();
 }
 
 function refreshCounter() {
-  el.count.textContent = arabicNumber(participants.length);
-  el.countCap.textContent = `الحد الأقصى ${arabicNumber(config.maxParticipants)}`;
-  const full = participants.length >= config.maxParticipants;
-  el.count.classList.toggle('is-full', full);
-  el.empty.classList.toggle('is-hidden', participants.length > 0);
+  const total = participants.length;
+  el.count.textContent = arabicNumber(total);
+  el.countCap.textContent = `من ${arabicNumber(config.maxParticipants)}`;
+  el.tallyFill.style.width = `${Math.min((total / config.maxParticipants) * 100, 100)}%`;
+  el.count.classList.toggle('is-full', total >= config.maxParticipants);
+  el.empty.classList.toggle('is-hidden', total > 0);
   updateHint();
   updateDrawButton();
 }
 
 function updateHint() {
-  const closed = !joinOpen || participants.length >= config.maxParticipants
+  const closed = !joinOpen
+    || participants.length >= config.maxParticipants
     || (config.joinDuringRoundOnly && !round.active);
   el.hintClosed.classList.toggle('is-hidden', !closed);
   document.body.classList.toggle('join-closed', closed);
@@ -135,10 +154,35 @@ function updateHint() {
 function updateDrawButton() {
   const busy = drawing || round.active;
   el.btnDraw.disabled = busy || participants.length === 0;
-  el.btnDraw.querySelector('.draw-btn__text').textContent = round.active ? '⏳ جارٍ العد' : '🚀 ابدأ';
+  el.drawLabel.textContent = round.active ? 'جارٍ العد' : 'ابدأ';
   el.drawHint.textContent = config.countdownSeconds > 0
-    ? `عدّ تنازلي ${arabicNumber(config.countdownSeconds)} ثانية ثم يختار الفائز`
+    ? `عدّ تنازلي ${arabicNumber(config.countdownSeconds)} ثانية ثم يُسحب الفائز`
     : 'سحب فوري بدون عد تنازلي';
+}
+
+/* ═══════════ آخر الفائزين ═══════════ */
+
+function renderRecent(history) {
+  const list = (history || []).slice(0, 4);
+  el.recentList.replaceChildren();
+
+  if (list.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'recent__item recent__item--empty';
+    empty.textContent = 'لم يُسحب أحد بعد';
+    el.recentList.appendChild(empty);
+    return;
+  }
+
+  list.forEach((person, index) => {
+    const item = document.createElement('li');
+    item.className = 'recent__item';
+    item.innerHTML = '<span class="recent__rank"></span><span class="recent__name"></span><span class="recent__handle"></span>';
+    item.querySelector('.recent__rank').textContent = String(index + 1).padStart(2, '0');
+    item.querySelector('.recent__name').textContent = person.name;
+    item.querySelector('.recent__handle').textContent = person.handle ? `@${person.handle}` : '';
+    el.recentList.appendChild(item);
+  });
 }
 
 /* ═══════════ الصوت ═══════════ */
@@ -171,24 +215,24 @@ function fanfare() {
     setTimeout(() => tone(f, 0.5, 'triangle', 0.12), i * 110));
 }
 
-/* ═══════════ القصاصات ═══════════ */
+/* ═══════════ قصاصات ورق ═══════════ */
 
-function confetti() {
+function shreds() {
   if (reduceMotion) return;
-  const colors = ['#33e1ff', '#7c5cff', '#ffd166', '#ff6a3d', '#eaf1ff'];
+  const colors = ['#F4EEE2', '#FFC53D', '#FF4A2B', '#E7DDCA', '#CDBFA6'];
   const pieces = document.createDocumentFragment();
-  for (let i = 0; i < 80; i += 1) {
+  for (let i = 0; i < 70; i += 1) {
     const bit = document.createElement('i');
     bit.style.left = `${Math.random() * 100}%`;
     bit.style.background = colors[i % colors.length];
-    bit.style.animationDuration = `${2.2 + Math.random() * 1.8}s`;
-    bit.style.animationDelay = `${Math.random() * 0.5}s`;
-    bit.style.transform = `rotate(${Math.random() * 360}deg)`;
-    if (i % 3 === 0) bit.style.borderRadius = '50%';
+    bit.style.animationDuration = `${2.4 + Math.random() * 1.8}s`;
+    bit.style.animationDelay = `${Math.random() * 0.6}s`;
+    bit.style.height = `${9 + Math.random() * 12}px`;
+    bit.style.opacity = 0.55 + Math.random() * 0.45;
     pieces.appendChild(bit);
   }
   el.confetti.replaceChildren(pieces);
-  setTimeout(() => el.confetti.replaceChildren(), 4600);
+  setTimeout(() => el.confetti.replaceChildren(), 4800);
 }
 
 /* ═══════════ العد التنازلي ═══════════ */
@@ -219,7 +263,7 @@ function hideCountdown() {
 /* ═══════════ حركة السحب ═══════════ */
 
 function runDraw(winner) {
-  const nodes = [...el.tickets.querySelectorAll('.ticket')];
+  const nodes = [...el.tickets.querySelectorAll('.stub')];
   const target = nodes.find((n) => n.dataset.id === winner.id);
 
   if (reduceMotion || nodes.length < 2 || !target) {
@@ -259,7 +303,7 @@ function finishDraw(winner, target) {
 
   if (target) {
     target.classList.add('is-spot', 'is-torn');
-    setTimeout(() => showWinner(winner), reduceMotion ? 0 : 520);
+    setTimeout(() => showWinner(winner), reduceMotion ? 0 : 620);
   } else {
     showWinner(winner);
   }
@@ -274,12 +318,12 @@ function showWinner(winner) {
   }
   el.wName.textContent = winner.name;
   el.wHandle.textContent = winner.handle ? `@${winner.handle}` : '';
-  el.wAvatar.innerHTML = avatarMarkup(winner);
+  paintAvatar(el.wAvatar, winner);
   el.thread.replaceChildren();
   el.threadWait.classList.remove('is-hidden');
   el.stageMain.hidden = true;
   el.stageWinner.hidden = false;
-  confetti();
+  shreds();
 }
 
 function showList() {
@@ -289,7 +333,7 @@ function showList() {
   refreshCounter();
 }
 
-/* ═══════════ محادثة الفائز ═══════════ */
+/* ═══════════ رسائل الفائز ═══════════ */
 
 function addBubble(message) {
   el.threadWait.classList.add('is-hidden');
@@ -309,9 +353,9 @@ function addBubble(message) {
 
 function updateConn(status, statusDetail) {
   if (el.connText) el.connText.textContent = statusDetail || '—';
-  if (!el.connBadge) return;
-  el.connBadge.classList.remove('is-connecting', 'is-connected', 'is-error', 'is-disconnected');
-  el.connBadge.classList.add(`is-${status || 'disconnected'}`);
+  if (!el.conn) return;
+  el.conn.classList.remove('is-connecting', 'is-connected', 'is-error', 'is-disconnected');
+  el.conn.classList.add(`is-${status || 'disconnected'}`);
 }
 
 /* ═══════════ الحساب ═══════════ */
@@ -339,7 +383,7 @@ el.accountCancel.addEventListener('click', closeAccountEditor);
 el.accountForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const username = el.accountInput.value.trim().replace(/^@/, '');
-  if (!username) { toast('اكتب اسم الحساب أول'); return; }
+  if (!username) { toast('اكتب اسم الحساب أولًا'); return; }
   socket.emit('account:set', { username });
   closeAccountEditor();
   toast(`جارٍ الربط بـ @${username}…`);
@@ -402,7 +446,7 @@ $('settings-save').addEventListener('click', () => {
     excludeWinners: setFields.exclude.checked,
     sound: { enabled: setFields.sound.checked, volume: Number(setFields.volume.value) },
   });
-  $('settings-note').textContent = 'تم الحفظ ✓';
+  $('settings-note').textContent = 'تم الحفظ';
   setTimeout(() => { $('settings-note').textContent = ''; }, 2000);
 });
 
@@ -417,13 +461,13 @@ $('btn-demo').addEventListener('click', () => socket.emit('demo', { count: 12 })
 
 /* ═══════════ سجل الأحداث ═══════════ */
 
-const EVENT_ICON = {
-  join: '👤',
-  winner: '🏆',
-  round: '⏱️',
-  connection: '📡',
-  system: 'ℹ️',
-  error: '⚠️',
+const EVENT_TAG = {
+  join: 'انضمام',
+  winner: 'فوز',
+  round: 'جولة',
+  connection: 'اتصال',
+  system: 'نظام',
+  error: 'خطأ',
 };
 
 let eventFilter = 'all';
@@ -433,9 +477,10 @@ function eventNode(event) {
   row.className = `event event--${event.type}`;
   row.dataset.type = event.type;
   row.innerHTML = `
-    <span class="event__icon">${EVENT_ICON[event.type] || '·'}</span>
+    <span class="event__tag"></span>
     <span class="event__text"></span>
     <time class="event__time"></time>`;
+  row.querySelector('.event__tag').textContent = EVENT_TAG[event.type] || '—';
   row.querySelector('.event__text').textContent = event.text;
   row.querySelector('.event__time').textContent =
     new Date(event.at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -466,13 +511,12 @@ $('btn-events').addEventListener('click', () => { el.drawer.hidden = !el.drawer.
 $('btn-events-close').addEventListener('click', () => { el.drawer.hidden = true; });
 $('btn-events-clear').addEventListener('click', () => socket.emit('events:clear'));
 
-/* ═══════════ الاتصال بالسيرفر ═══════════ */
+/* ═══════════ السيرفر ═══════════ */
 
 function initializeSocket() {
   socket = io();
 
   socket.on('connect', () => updateConn('connecting', 'جارٍ قراءة الحالة…'));
-
   socket.on('connect_error', () => updateConn('error', 'السيرفر غير متاح'));
 
   socket.on('state', (s) => {
@@ -482,6 +526,7 @@ function initializeSocket() {
     renderAll();
     updateConn(s.status, s.statusDetail);
     renderEvents(s.events || []);
+    renderRecent(s.history || []);
 
     if (s.round && s.round.active) showCountdown(s.round); else hideCountdown();
 
@@ -498,12 +543,12 @@ function initializeSocket() {
     updateConn(s.status, s.statusDetail);
   });
 
-  socket.on('settings', (next) => { applyConfig(next); });
+  socket.on('settings', (next) => applyConfig(next));
 
   socket.on('participant:add', (p) => {
     if (drawing) return;
     if (participants.some((x) => x.id === p.id)) return;
-    addTicket(p);
+    addStub(p);
   });
 
   socket.on('participants:clear', () => {
@@ -515,19 +560,24 @@ function initializeSocket() {
   socket.on('join:closed', () => { joinOpen = false; updateHint(); });
 
   socket.on('round:start', (r) => { showCountdown(r); beep(false); });
-  socket.on('round:tick', (r) => { round = { ...r, active: true }; paintCountdown(); if (r.remaining <= 5) beep(true); });
-  socket.on('round:end', () => hideCountdown());
+  socket.on('round:tick', (r) => {
+    round = { ...r, active: true };
+    paintCountdown();
+    if (r.remaining <= 5) beep(true);
+  });
+  socket.on('round:end', hideCountdown);
 
-  socket.on('winner', ({ winner, participants: list }) => {
+  socket.on('winner', ({ winner, participants: list, history }) => {
     drawing = true;
     pendingParticipants = list;
+    renderRecent(history || []);
     runDraw(winner);
   });
 
   socket.on('draw:empty', () => {
     drawing = false;
     refreshCounter();
-    toast('ما فيه مشاركين للسحب');
+    toast('لا يوجد مشاركون للسحب');
   });
 
   socket.on('winner:clear', showList);
@@ -535,14 +585,14 @@ function initializeSocket() {
 
   socket.on('event', addEvent);
   socket.on('events:clear', () => el.eventsList.replaceChildren());
-  socket.on('history:clear', () => toast('تم مسح سجل الفائزين'));
+  socket.on('history:clear', () => { renderRecent([]); toast('تم مسح سجل الفائزين'); });
 }
 
-/* ═══════════ تفاعل المستخدم ═══════════ */
+/* ═══════════ التفاعل ═══════════ */
 
 function requestStart() {
   if (drawing || round.active) return;
-  if (participants.length === 0) { toast('ما فيه مشاركين بعد'); return; }
+  if (participants.length === 0) { toast('لا يوجد مشاركون بعد'); return; }
   beep(false);
   el.btnDraw.disabled = true;
   socket.emit('round:start');
@@ -576,4 +626,5 @@ document.addEventListener('keydown', (e) => {
 });
 
 applyConfig(config);
+renderRecent([]);
 initializeSocket();
