@@ -3,133 +3,125 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>شاشة اللاعبين · كروما</title>
+<title>شاشة اللاعبين</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@700;800&family=Readex+Pro:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="overlay.css">
 <style>
-  :root {
-    --chroma:     #00ff00;
-    --paper:      #F4EEE2;
-    --paper-2:    #E7DDCA;
-    --paper-3:    #CDBFA6;
-    --graphite:   #16262B;
-    --graphite-2: #566E75;
-    --signal:     #C3301A;
-    --gold:       #FFC53D;
-    --live:       #1F9D62;
-    --size: 26px;
-
-    --display: 'Baloo Bhaijaan 2', system-ui, sans-serif;
-    --body: 'Readex Pro', system-ui, sans-serif;
-    --mono: 'Space Mono', ui-monospace, monospace;
-  }
-
-  * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
+  .screen {
     height: 100%;
-    background: var(--chroma);
-    font-family: var(--body);
-    color: var(--graphite);
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
   }
+  body[data-align="center"] .screen { justify-content: center; }
+  body[data-align="end"]    .screen { justify-content: flex-end; }
 
-  .screen { height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 22px; }
+  /* ═══ شريط العدّاد ═══ */
 
-  /* ═══ الشريط العلوي ═══ */
-
-  .bar { display: flex; align-items: center; gap: 10px; flex: none; }
-  .bar.is-off { display: none; }
+  .bar { display: flex; align-items: center; gap: 9px; flex: none; }
+  body.no-bar .bar { display: none; }
 
   .pill {
     display: inline-flex;
     align-items: baseline;
-    gap: 9px;
-    padding: 7px 16px 8px;
+    gap: 8px;
+    padding: 6px 15px 8px;
     border-radius: 6px;
     background: var(--paper);
-    box-shadow: 0 4px 0 rgba(0, 0, 0, .16);
-    font-size: calc(var(--size) * .62);
+    filter: drop-shadow(var(--lift));
+    font-size: calc(var(--size) * .58);
     font-weight: 600;
   }
-  .pill b { font-family: var(--display); font-size: calc(var(--size) * .95); font-weight: 800; }
-  .pill__label { color: var(--graphite-2); font-size: calc(var(--size) * .44); }
+  .pill b { font-family: var(--display); font-size: calc(var(--size) * .92); font-weight: 800; }
+  .pill__label { color: var(--graphite-2); font-size: calc(var(--size) * .42); }
 
   .pill--timer { margin-inline-start: auto; background: var(--gold); }
   .pill--timer.is-urgent { background: var(--signal); color: var(--paper); }
-  .pill--timer.is-off { display: none; }
+  .pill--timer.is-urgent .pill__label { color: rgba(244, 238, 226, .8); }
+  .pill--timer[hidden] { display: none; }
 
-  /* ═══ قائمة اللاعبين ═══ */
+  /* ═══ اللاعبون ═══ */
 
   .roster {
-    flex: 1;
+    flex: 0 1 auto;
     min-height: 0;
     overflow: hidden;
     display: grid;
     grid-template-columns: repeat(var(--cols, auto-fill), minmax(var(--chip-min, 230px), 1fr));
     grid-auto-rows: min-content;
     align-content: start;
-    gap: 9px;
-    transition: opacity .35s ease, filter .35s ease;
+    gap: 8px;
+    transition: opacity .35s ease;
   }
-  body.is-revealing .roster { opacity: .26; filter: saturate(.6); }
+  body[data-layout="list"] .roster { grid-template-columns: 1fr; }
+  body.is-revealing .roster { opacity: .22; }
 
   .chip {
     position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 14px 10px 26px;
-    border-radius: 4px;
+    padding: 8px 14px 9px 24px;
+    border-radius: 5px;
     background: var(--paper);
-    box-shadow: 0 3px 0 rgba(0, 0, 0, .15);
+    filter: drop-shadow(var(--lift));
     font-size: var(--size);
     font-weight: 600;
     line-height: 1.2;
-    animation: chip-in .3s cubic-bezier(.2, 1, .3, 1.3) both;
+    animation: pop-in .28s cubic-bezier(.2, 1, .3, 1.3) both;
   }
   .chip__no {
     position: absolute;
-    inset-inline-start: 8px;
+    inset-inline-start: 7px;
     top: 50%;
     transform: translateY(-50%) rotate(180deg);
     writing-mode: vertical-rl;
     font-family: var(--mono);
-    font-size: calc(var(--size) * .4);
+    font-size: calc(var(--size) * .38);
     font-weight: 700;
     letter-spacing: .14em;
     color: var(--graphite-2);
   }
-  .chip__avatar {
-    width: calc(var(--size) * 1.5);
-    height: calc(var(--size) * 1.5);
-    flex: none;
-    border-radius: 4px;
-    background: var(--paper-2);
-    color: var(--graphite-2);
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    font-family: var(--display);
-    font-size: calc(var(--size) * .7);
-    font-weight: 800;
+  .chip .face {
+    width: calc(var(--size) * 1.45);
+    height: calc(var(--size) * 1.45);
+    font-size: calc(var(--size) * .68);
   }
-  .chip__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  body.no-avatars .chip__avatar { display: none; }
   .chip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .chip.is-new { animation: pop-in .28s cubic-bezier(.2, 1, .3, 1.3) both, flash .9s ease 1; }
+  @keyframes flash {
+    0%, 100% { background: var(--paper); }
+    35%      { background: var(--gold); }
+  }
 
   .chip.is-spot {
     z-index: 2;
     background: var(--gold);
-    box-shadow: 0 0 0 4px var(--signal), 0 6px 0 rgba(0, 0, 0, .2);
+    box-shadow: inset 0 0 0 4px var(--signal);
     transform: scale(1.05);
   }
 
-  @keyframes chip-in {
-    from { opacity: 0; transform: translateY(-10px); }
-    to   { opacity: 1; transform: none; }
+  .chip--more {
+    justify-content: center;
+    background: var(--paper-2);
+    color: var(--graphite-2);
+    font-size: calc(var(--size) * .7);
+  }
+
+  .empty {
+    justify-self: start;
+    grid-column: 1 / -1;
+    padding: 12px 22px 14px;
+    border-radius: 6px;
+    background: var(--paper);
+    filter: drop-shadow(var(--lift));
+    font-size: calc(var(--size) * .72);
+    font-weight: 600;
+    color: var(--graphite-2);
   }
 
   /* ═══ إعلان الفائز ═══ */
@@ -140,7 +132,7 @@
     z-index: 6;
     display: none;
     place-items: center;
-    padding: 30px;
+    padding: 26px;
     pointer-events: none;
   }
   body.is-revealing .reveal { display: grid; }
@@ -148,399 +140,279 @@
   .card {
     position: relative;
     max-width: 94vw;
-    padding: 30px 46px 34px 76px;
-    border-radius: 10px;
-    background: var(--paper);
-    box-shadow: 0 10px 0 rgba(0, 0, 0, .2);
-    text-align: center;
+    padding: 26px 40px 30px calc(var(--notch-inset) + 30px);
+    text-align: start;
     animation: card-in .5s cubic-bezier(.15, 1.25, .35, 1) both;
   }
-  .card::before, .card::after {
-    content: '';
-    position: absolute;
-    inset-inline-start: 44px;
-    width: 20px; height: 20px;
-    border-radius: 50%;
-    background: var(--chroma);
-  }
-  .card::before { top: -10px; }
-  .card::after  { bottom: -10px; }
-  .card__perf { position: absolute; inset-block: 12px; inset-inline-start: 53px; border-inline-start: 3px dashed var(--paper-3); }
-
   .card__eyebrow {
-    margin: 0 0 6px;
-    font-size: calc(var(--size) * .52);
+    margin: 0 0 4px;
+    font-size: calc(var(--size) * .48);
     font-weight: 600;
     letter-spacing: .2em;
     color: var(--graphite-2);
   }
-  .card__row { display: flex; align-items: center; justify-content: center; gap: 24px; }
-  .card__avatar {
-    width: calc(var(--size) * 4.2);
-    height: calc(var(--size) * 4.2);
-    flex: none;
+  .card__row { display: flex; align-items: center; gap: 22px; }
+  .card .face {
+    width: calc(var(--size) * 4);
+    height: calc(var(--size) * 4);
     border-radius: 8px;
-    overflow: hidden;
-    background: var(--paper-2);
-    color: var(--graphite-2);
-    display: grid;
-    place-items: center;
-    font-family: var(--display);
-    font-size: calc(var(--size) * 2);
-    font-weight: 800;
+    font-size: calc(var(--size) * 1.9);
   }
-  .card__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  body.no-avatars .card__avatar { display: none; }
-
   .card__name {
     margin: 0;
     font-family: var(--display);
-    font-size: calc(var(--size) * 3.1);
+    font-size: calc(var(--size) * 3);
     font-weight: 800;
     line-height: 1.04;
     letter-spacing: -.015em;
     word-break: break-word;
   }
-  .card__handle {
-    margin: 6px 0 0;
+  .card__meta {
+    margin: 5px 0 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
     font-family: var(--mono);
-    font-size: calc(var(--size) * .68);
+    font-size: calc(var(--size) * .62);
     color: var(--graphite-2);
-    direction: ltr;
   }
+  .card__no { direction: ltr; }
+  .card__handle { direction: ltr; }
 
   .card__stamp {
-    position: absolute;
-    top: 14px;
-    inset-inline-end: 22px;
-    padding: 3px 16px 6px;
-    border: 5px solid var(--signal);
-    border-radius: 6px;
-    color: var(--signal);
-    font-family: var(--display);
-    font-size: calc(var(--size) * 1.05);
-    font-weight: 800;
-    letter-spacing: .06em;
-    mix-blend-mode: multiply;
-    transform: rotate(-12deg);
-    animation: stamp .5s cubic-bezier(.2, 1.4, .3, 1) .34s both;
+    top: 12px;
+    inset-inline-end: 20px;
+    font-size: calc(var(--size) * 1);
+    animation: stamp-in .5s cubic-bezier(.2, 1.4, .3, 1) .34s both;
   }
 
   @keyframes card-in {
-    0%   { opacity: 0; transform: scale(.6) rotate(-3deg); }
+    0%   { opacity: 0; transform: scale(.62) rotate(-3deg); }
     100% { opacity: 1; transform: none; }
-  }
-  @keyframes stamp {
-    0%   { opacity: 0;   transform: rotate(-12deg) scale(3); }
-    60%  { opacity: 1;   transform: rotate(-12deg) scale(.9); }
-    100% { opacity: .93; transform: rotate(-12deg) scale(1); }
-  }
-
-  /* ═══ قصاصات ورق ═══ */
-
-  .shreds { position: fixed; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; }
-  .shreds i {
-    position: absolute;
-    top: -14vh;
-    width: 12px; height: 20px;
-    animation: fall linear forwards;
-  }
-  @keyframes fall { to { transform: translateY(122vh) rotate(720deg); } }
-
-  /* ═══ لوحة الضبط ═══ */
-
-  .panel {
-    position: fixed;
-    top: 12px;
-    inset-inline-start: 12px;
-    z-index: 9;
-    display: grid;
-    gap: 9px;
-    padding: 13px 15px;
-    border-radius: 8px;
-    background: #0F2A31;
-    color: #F4EEE2;
-    font-size: 12.5px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s;
-  }
-  body.show-panel .panel { opacity: 1; pointer-events: auto; }
-  .panel__row { display: flex; align-items: center; gap: 8px; }
-  .panel label { color: #7E97A0; }
-  .panel button {
-    border: 1px solid #1D4952;
-    background: transparent;
-    color: #F4EEE2;
-    border-radius: 4px;
-    padding: 4px 11px;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-  }
-  .panel button.is-on { border-color: var(--gold); color: var(--gold); }
-  .panel input[type="range"] { accent-color: var(--gold); width: 104px; }
-  .swatch { width: 20px; height: 20px; border-radius: 4px; border: 1px solid #2C6270; cursor: pointer; }
-
-  .audio-note {
-    position: fixed;
-    bottom: 14px;
-    inset-inline-start: 14px;
-    z-index: 9;
-    padding: 8px 14px;
-    border-radius: 6px;
-    background: var(--signal);
-    color: var(--paper);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 0;
-  }
-  .audio-note[hidden] { display: none; }
-
-  .empty {
-    place-self: center;
-    grid-column: 1 / -1;
-    padding: 18px 26px;
-    border-radius: 6px;
-    background: var(--paper);
-    font-size: calc(var(--size) * .75);
-    font-weight: 600;
-    color: var(--graphite-2);
-    box-shadow: 0 4px 0 rgba(0, 0, 0, .15);
   }
 </style>
 </head>
 <body>
 
 <div class="screen">
-  <div class="bar" id="bar">
+  <div class="bar">
     <span class="pill"><span class="pill__label">المشاركون</span><b id="count">٠</b></span>
-    <span class="pill pill--timer is-off" id="timer"><span class="pill__label">يبدأ بعد</span><b id="timer-num">٠</b></span>
+    <span class="pill pill--timer" id="timer" hidden><span class="pill__label">يبدأ بعد</span><b id="timer-num">٠</b></span>
   </div>
 
   <div class="roster" id="roster"></div>
 </div>
 
 <div class="reveal" id="reveal">
-  <div class="card">
-    <span class="card__perf" aria-hidden="true"></span>
-    <span class="card__stamp">فائز</span>
-    <p class="card__eyebrow">التذكرة الرابحة</p>
-    <div class="card__row">
-      <div class="card__avatar" id="w-avatar"></div>
-      <div>
-        <h1 class="card__name" id="w-name">—</h1>
-        <p class="card__handle" id="w-handle"></p>
+  <div class="ticket-wrap">
+    <div class="card ticket">
+      <span class="ticket__perf" aria-hidden="true"></span>
+      <span class="stamp card__stamp">فائز</span>
+      <p class="card__eyebrow">التذكرة الرابحة</p>
+      <div class="card__row">
+        <div class="face" id="w-face"></div>
+        <div>
+          <h1 class="card__name" id="w-name">—</h1>
+          <p class="card__meta">
+            <span class="card__no" id="w-no"></span>
+            <span class="card__handle" id="w-handle"></span>
+          </p>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <div class="shreds" id="shreds" aria-hidden="true"></div>
+<button class="audio-note" id="audio-note" hidden>فعّل الصوت</button>
 
-<button class="audio-note" id="audio-note" hidden>اضغط هنا لتفعيل الصوت</button>
-
-<div class="panel" id="panel">
+<div class="panel">
   <div class="panel__row">
-    <label>الخلفية</label>
-    <span class="swatch" data-color="#00ff00" style="background:#00ff00"></span>
-    <span class="swatch" data-color="#0000ff" style="background:#0000ff"></span>
-    <span class="swatch" data-color="#ff00ff" style="background:#ff00ff"></span>
-    <span class="swatch" data-color="#0B1E24" style="background:#0B1E24"></span>
+    <span class="panel__label">الخلفية</span>
+    <button class="swatch swatch--clear" data-bg-option="transparent" title="بدون خلفية"></button>
+    <button class="swatch" data-bg-option="green" style="background:#00ff00" title="أخضر"></button>
+    <button class="swatch" data-bg-option="blue" style="background:#0000ff" title="أزرق"></button>
+    <button class="swatch" data-bg-option="magenta" style="background:#ff00ff" title="بنفسجي"></button>
+    <button class="swatch" data-bg-option="dark" style="background:#0B1E24" title="لوح داكن"></button>
   </div>
+
   <div class="panel__row">
-    <label>الحجم</label>
-    <input type="range" id="size" min="16" max="64" step="2" value="26">
-    <label>الأعمدة</label>
-    <button data-cols="auto" class="is-on">تلقائي</button>
-    <button data-cols="1">١</button>
+    <span class="panel__label">الحجم</span>
+    <input type="range" id="p-size" min="14" max="64" step="2">
+    <span class="panel__hint" id="p-size-view">26</span>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">الشكل</span>
+    <button data-layout="grid">شبكة</button>
+    <button data-layout="list">عمود</button>
+    <button data-cols="auto">تلقائي</button>
     <button data-cols="2">٢</button>
     <button data-cols="3">٣</button>
   </div>
+
   <div class="panel__row">
-    <button id="toggle-avatars" class="is-on">الصور</button>
-    <button id="toggle-bar" class="is-on">العدّاد</button>
-    <button id="toggle-sound" class="is-on">الصوت</button>
-    <button id="test-sound">تجربة الفوز</button>
+    <span class="panel__label">المكان</span>
+    <button data-align="start">أعلى</button>
+    <button data-align="center">وسط</button>
+    <button data-align="end">أسفل</button>
+    <span class="panel__label">أقصى عدد</span>
+    <input type="range" id="p-max" min="0" max="40" step="1">
+    <span class="panel__hint" id="p-max-view">الكل</span>
   </div>
+
+  <div class="panel__row">
+    <button id="p-faces">الصور</button>
+    <button id="p-bar">العدّاد</button>
+    <button id="p-sound">الصوت</button>
+    <button id="p-test">تجربة الفوز</button>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__hint">V يفتح ويغلق هذه اللوحة</span>
+    <button data-panel-close style="margin-inline-start:auto">إغلاق</button>
+  </div>
+
+  <p class="panel__hint">?bg=transparent&size=30&layout=list&align=end&max=8&faces=0&bar=0&sound=0</p>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="overlay.js"></script>
 <script>
 'use strict';
 
-const params = new URLSearchParams(location.search);
+const socket = io();
+
 const rosterEl = document.getElementById('roster');
-const revealEl = document.getElementById('reveal');
-const shredsEl = document.getElementById('shreds');
 const countEl = document.getElementById('count');
 const timerEl = document.getElementById('timer');
 const timerNum = document.getElementById('timer-num');
-const audioNote = document.getElementById('audio-note');
-
-const arabicNumber = (n) => Number(n).toLocaleString('ar-EG');
+const shredsEl = document.getElementById('shreds');
 
 let participants = [];
 let pending = null;
 let drawing = false;
-let soundOn = params.get('sound') !== '0';
 
-/* ── الخيارات من الرابط ── */
-if (params.get('color')) document.documentElement.style.setProperty('--chroma', `#${params.get('color').replace('#', '')}`);
-if (params.get('size')) document.documentElement.style.setProperty('--size', `${params.get('size')}px`);
-if (params.get('cols') && params.get('cols') !== 'auto') document.documentElement.style.setProperty('--cols', params.get('cols'));
-if (params.get('avatars') === '0') document.body.classList.add('no-avatars');
-if (params.get('bar') === '0') document.getElementById('bar').classList.add('is-off');
+/* ═══ الإعدادات — تُضبط من الموقع أو من هذه اللوحة (زر V) ═══ */
 
-/* ═══════════ الصوت ═══════════ */
+const prefs = Overlay.init({
+  screen: 'players',
+  socket,
+  onChange: applyAll,
+  defaults: {
+    bg: 'transparent',
+    size: 26,
+    layout: 'grid',
+    cols: 'auto',
+    align: 'start',
+    max: 0,
+    faces: true,
+    bar: true,
+    sound: true,
+  },
+});
 
-let ctx = null;
-
-function audio() {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') {
-    ctx.resume();
-    if (ctx.state === 'suspended') audioNote.hidden = false;
-  }
-  return ctx;
-}
-
-function note(freq, start, duration, type = 'triangle', gain = 0.16) {
-  if (!soundOn) return;
-  const c = audio();
-  const t = c.currentTime + start;
-  const osc = c.createOscillator();
-  const amp = c.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t);
-  amp.gain.setValueAtTime(0.0001, t);
-  amp.gain.exponentialRampToValueAtTime(gain, t + 0.015);
-  amp.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-  osc.connect(amp).connect(c.destination);
-  osc.start(t);
-  osc.stop(t + duration + 0.05);
-}
-
-function noiseBurst(start, duration, gain = 0.14) {
-  if (!soundOn) return;
-  const c = audio();
-  const frames = Math.floor(c.sampleRate * duration);
-  const buffer = c.createBuffer(1, frames, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-
-  const src = c.createBufferSource();
-  src.buffer = buffer;
-  const filter = c.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = 2200;
-  filter.Q.value = 0.7;
-  const amp = c.createGain();
-  amp.gain.value = gain;
-  src.connect(filter).connect(amp).connect(c.destination);
-  src.start(c.currentTime + start);
-}
-
-function tick() {
-  note(880, 0, 0.04, 'square', 0.05);
-}
-
-function victory() {
-  if (!soundOn) return;
-  audio();
-
-  // دفعة منخفضة
-  const c = ctx;
-  const boom = c.createOscillator();
-  const boomAmp = c.createGain();
-  boom.type = 'sine';
-  boom.frequency.setValueAtTime(150, c.currentTime);
-  boom.frequency.exponentialRampToValueAtTime(48, c.currentTime + 0.7);
-  boomAmp.gain.setValueAtTime(0.3, c.currentTime);
-  boomAmp.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.8);
-  boom.connect(boomAmp).connect(c.destination);
-  boom.start();
-  boom.stop(c.currentTime + 0.85);
-
-  // فانفير صاعد
-  const arp = [523.25, 659.25, 783.99, 1046.5];
-  arp.forEach((f, i) => {
-    note(f, i * 0.1, 0.42, 'triangle', 0.2);
-    note(f * 2, i * 0.1, 0.28, 'square', 0.05);
+function markGroup(selector, attribute, value) {
+  document.querySelectorAll(selector).forEach((button) => {
+    button.classList.toggle('is-on', button.dataset[attribute] === String(value));
   });
-
-  // كورد نهائي ممتد
-  [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f) => {
-    note(f, 0.46, 1.5, 'triangle', 0.14);
-  });
-
-  // تصفيق تقريبي
-  noiseBurst(0.44, 1.5, 0.11);
-  noiseBurst(0.02, 0.35, 0.09);
 }
 
-document.addEventListener('pointerdown', () => { audio(); audioNote.hidden = true; }, { once: true });
-audioNote.addEventListener('click', () => { audio(); audioNote.hidden = true; note(880, 0, 0.1); });
+function applyAll(current) {
+  Overlay.applyBackground(current.bg);
+  Overlay.applySize(current.size);
 
-/* ═══════════ قائمة اللاعبين ═══════════ */
+  document.body.dataset.layout = current.layout;
+  document.body.dataset.align = current.align;
+  document.documentElement.style.setProperty('--cols', current.cols === 'auto' ? 'auto-fill' : current.cols);
+  document.body.classList.toggle('no-faces', !current.faces);
+  document.body.classList.toggle('no-bar', !current.bar);
+  Overlay.setMuted(!current.sound);
 
-function initials(name) {
-  const clean = String(name || '').trim();
-  return clean ? [...clean][0] : '؟';
+  markGroup('[data-layout]', 'layout', current.layout);
+  markGroup('[data-cols]', 'cols', current.cols);
+  markGroup('[data-align]', 'align', current.align);
+
+  const size = document.getElementById('p-size');
+  size.value = current.size;
+  document.getElementById('p-size-view').textContent = current.size;
+
+  document.getElementById('p-max').value = current.max;
+  document.getElementById('p-max-view').textContent = current.max > 0 ? Overlay.arabicNumber(current.max) : 'الكل';
+
+  Overlay.toggleButton(document.getElementById('p-faces'), current.faces, 'الصور', 'بدون صور');
+  Overlay.toggleButton(document.getElementById('p-bar'), current.bar, 'العدّاد', 'بدون عدّاد');
+  Overlay.toggleButton(document.getElementById('p-sound'), current.sound, 'الصوت', 'صامت');
+
+  renderRoster();
 }
 
-function chipNode(p) {
+Overlay.bindAudioNote(document.getElementById('audio-note'));
+Overlay.keyPanel();
+
+/* ═══ القائمة ═══ */
+
+function chipNode(p, isNew) {
   const node = document.createElement('div');
-  node.className = 'chip';
+  node.className = isNew ? 'chip is-new' : 'chip';
   node.dataset.id = p.id;
-  node.innerHTML = '<span class="chip__no"></span><span class="chip__avatar"></span><span class="chip__name"></span>';
+  node.innerHTML = '<span class="chip__no"></span><span class="face"></span><span class="chip__name"></span>';
   node.querySelector('.chip__no').textContent = String(p.order).padStart(3, '0');
   node.querySelector('.chip__name').textContent = p.name;
-
-  const avatar = node.querySelector('.chip__avatar');
-  if (p.avatar) {
-    const img = document.createElement('img');
-    img.src = p.avatar;
-    img.referrerPolicy = 'no-referrer';
-    img.alt = '';
-    img.addEventListener('error', () => { avatar.textContent = initials(p.name); });
-    avatar.appendChild(img);
-  } else {
-    avatar.textContent = initials(p.name);
-  }
+  Overlay.face(node.querySelector('.face'), p);
   return node;
 }
 
+function visibleSlice() {
+  const max = Overlay.get('max');
+  if (!max || participants.length <= max) return { list: participants, hidden: 0 };
+  return { list: participants.slice(-max), hidden: participants.length - max };
+}
+
 function renderRoster() {
+  countEl.textContent = Overlay.arabicNumber(participants.length);
   rosterEl.replaceChildren();
+
   if (participants.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'empty';
     empty.textContent = 'بانتظار المشاركين…';
     rosterEl.appendChild(empty);
-  } else {
-    participants.forEach((p) => rosterEl.appendChild(chipNode(p)));
+    return;
   }
-  countEl.textContent = arabicNumber(participants.length);
+
+  const { list, hidden } = visibleSlice();
+  if (hidden > 0) {
+    const more = document.createElement('div');
+    more.className = 'chip chip--more';
+    more.textContent = `و${Overlay.arabicNumber(hidden)} آخرين`;
+    rosterEl.appendChild(more);
+  }
+  list.forEach((p) => rosterEl.appendChild(chipNode(p)));
 }
 
 function addParticipant(p) {
   if (participants.some((x) => x.id === p.id)) return;
-  const wasEmpty = participants.length === 0;
   participants.push(p);
-  if (wasEmpty) rosterEl.replaceChildren();
-  rosterEl.appendChild(chipNode(p));
-  countEl.textContent = arabicNumber(participants.length);
+  countEl.textContent = Overlay.arabicNumber(participants.length);
+
+  const max = Overlay.get('max');
+  if (participants.length === 1 || (max && participants.length > max)) {
+    renderRoster();
+    const last = rosterEl.lastElementChild;
+    if (last) last.classList.add('is-new');
+  } else {
+    rosterEl.appendChild(chipNode(p, true));
+  }
   rosterEl.scrollTo({ top: rosterEl.scrollHeight, behavior: 'smooth' });
-  note(660, 0, 0.07, 'triangle', 0.05);
+  Overlay.blip();
 }
 
-/* ═══════════ حركة السحب ═══════════ */
+/* ═══ السحب ═══ */
 
 function runDraw(winner) {
   drawing = true;
-  const nodes = [...rosterEl.querySelectorAll('.chip')];
+  const nodes = [...rosterEl.querySelectorAll('.chip:not(.chip--more)')];
   const target = nodes.find((n) => n.dataset.id === winner.id);
 
   if (nodes.length < 2 || !target) {
@@ -557,14 +429,14 @@ function runDraw(winner) {
     const node = (steps - step) <= 1 ? target : nodes[(start + step) % nodes.length];
     node.classList.add('is-spot');
     node.scrollIntoView({ block: 'nearest' });
-    tick();
+    Overlay.tick();
     step += 1;
 
     if (step > steps) {
       setTimeout(() => {
         nodes.forEach((n) => n.classList.remove('is-spot'));
         reveal(winner);
-      }, 420);
+      }, 430);
       return;
     }
     const progress = step / steps;
@@ -574,32 +446,24 @@ function runDraw(winner) {
   hop();
 }
 
-function reveal(winner) {
-  drawing = false;
+function paintWinner(winner) {
   document.getElementById('w-name').textContent = winner.name;
   document.getElementById('w-handle').textContent = winner.handle ? `@${winner.handle}` : '';
+  document.getElementById('w-no').textContent = winner.order ? `#${String(winner.order).padStart(3, '0')}` : '';
+  Overlay.face(document.getElementById('w-face'), winner);
+}
 
-  const avatar = document.getElementById('w-avatar');
-  avatar.replaceChildren();
-  if (winner.avatar) {
-    const img = document.createElement('img');
-    img.src = winner.avatar;
-    img.referrerPolicy = 'no-referrer';
-    img.alt = '';
-    img.addEventListener('error', () => { avatar.textContent = initials(winner.name); });
-    avatar.appendChild(img);
-  } else {
-    avatar.textContent = initials(winner.name);
-  }
-
+function reveal(winner) {
+  drawing = false;
+  paintWinner(winner);
   document.body.classList.add('is-revealing');
-  victory();
-  shreds();
+  Overlay.victory();
+  Overlay.shreds(shredsEl);
 
   if (pending) {
     participants = pending;
     pending = null;
-    setTimeout(renderRoster, 600);
+    setTimeout(renderRoster, 700);
   }
 }
 
@@ -608,36 +472,25 @@ function backToRoster() {
   shredsEl.replaceChildren();
 }
 
-function shreds() {
-  const colors = ['#F4EEE2', '#FFC53D', '#C3301A', '#E7DDCA', '#CDBFA6'];
-  const pieces = document.createDocumentFragment();
-  for (let i = 0; i < 90; i += 1) {
-    const bit = document.createElement('i');
-    bit.style.left = `${Math.random() * 100}%`;
-    bit.style.background = colors[i % colors.length];
-    bit.style.animationDuration = `${2.2 + Math.random() * 2}s`;
-    bit.style.animationDelay = `${Math.random() * 0.7}s`;
-    bit.style.height = `${12 + Math.random() * 16}px`;
-    bit.style.width = `${7 + Math.random() * 7}px`;
-    pieces.appendChild(bit);
-  }
-  shredsEl.replaceChildren(pieces);
-  setTimeout(() => shredsEl.replaceChildren(), 5200);
+function paintTimer(round) {
+  timerEl.hidden = false;
+  timerNum.textContent = Overlay.arabicNumber(Math.max(round.remaining, 0));
+  timerEl.classList.toggle('is-urgent', round.remaining <= 5);
+  if (round.remaining <= 5 && round.remaining > 0) Overlay.urgent();
 }
 
-/* ═══════════ الاتصال ═══════════ */
-
-const socket = io();
+/* ═══ الاتصال ═══ */
 
 socket.on('state', (s) => {
+  if (s.config && s.config.overlay) Overlay.fromServer(s.config.overlay.players);
+
   participants = s.participants || [];
   renderRoster();
 
-  if (s.round && s.round.active) paintTimer(s.round); else timerEl.classList.add('is-off');
+  if (s.round && s.round.active) paintTimer(s.round); else timerEl.hidden = true;
 
   if (s.winner) {
-    document.getElementById('w-name').textContent = s.winner.name;
-    document.getElementById('w-handle').textContent = s.winner.handle ? `@${s.winner.handle}` : '';
+    paintWinner(s.winner);
     document.body.classList.add('is-revealing');
   } else {
     backToRoster();
@@ -649,7 +502,7 @@ socket.on('participants:clear', () => { participants = []; renderRoster(); });
 
 socket.on('round:start', paintTimer);
 socket.on('round:tick', paintTimer);
-socket.on('round:end', () => timerEl.classList.add('is-off'));
+socket.on('round:end', () => { timerEl.hidden = true; });
 
 socket.on('winner', ({ winner, participants: list }) => {
   pending = list;
@@ -657,64 +510,29 @@ socket.on('winner', ({ winner, participants: list }) => {
 });
 socket.on('winner:clear', backToRoster);
 
-function paintTimer(round) {
-  timerEl.classList.remove('is-off');
-  timerNum.textContent = arabicNumber(Math.max(round.remaining, 0));
-  timerEl.classList.toggle('is-urgent', round.remaining <= 5);
-  if (round.remaining <= 5 && round.remaining > 0) note(1200, 0, 0.08, 'square', 0.07);
-}
+/* ═══ أزرار اللوحة ═══ */
 
-/* ═══════════ لوحة الضبط ═══════════ */
+document.querySelectorAll('[data-bg-option]').forEach((b) => b.addEventListener('click', () => Overlay.set('bg', b.dataset.bgOption)));
+document.querySelectorAll('[data-layout]').forEach((b) => b.addEventListener('click', () => Overlay.set('layout', b.dataset.layout)));
+document.querySelectorAll('[data-cols]').forEach((b) => b.addEventListener('click', () => Overlay.set('cols', b.dataset.cols)));
+document.querySelectorAll('[data-align]').forEach((b) => b.addEventListener('click', () => Overlay.set('align', b.dataset.align)));
 
-let panelTimer = null;
-document.addEventListener('mousemove', () => {
-  document.body.classList.add('show-panel');
-  clearTimeout(panelTimer);
-  panelTimer = setTimeout(() => document.body.classList.remove('show-panel'), 2800);
+document.getElementById('p-size').addEventListener('input', (e) => Overlay.set('size', Number(e.target.value)));
+document.getElementById('p-max').addEventListener('input', (e) => Overlay.set('max', Number(e.target.value)));
+document.getElementById('p-faces').addEventListener('click', () => Overlay.set('faces', !Overlay.get('faces')));
+document.getElementById('p-bar').addEventListener('click', () => Overlay.set('bar', !Overlay.get('bar')));
+document.getElementById('p-sound').addEventListener('click', () => {
+  const on = !Overlay.get('sound');
+  Overlay.set('sound', on);
+  if (on) Overlay.tone(880, 0, 0.1);
+});
+document.getElementById('p-test').addEventListener('click', () => {
+  Overlay.context();
+  Overlay.victory();
+  Overlay.shreds(shredsEl);
 });
 
-document.querySelectorAll('.swatch').forEach((swatch) => {
-  swatch.addEventListener('click', () => {
-    document.documentElement.style.setProperty('--chroma', swatch.dataset.color);
-  });
-});
-
-document.getElementById('size').addEventListener('input', (e) => {
-  document.documentElement.style.setProperty('--size', `${e.target.value}px`);
-});
-
-document.querySelectorAll('[data-cols]').forEach((button) => {
-  button.addEventListener('click', () => {
-    const value = button.dataset.cols;
-    document.documentElement.style.setProperty('--cols', value === 'auto' ? 'auto-fill' : value);
-    document.querySelectorAll('[data-cols]').forEach((b) => b.classList.toggle('is-on', b === button));
-  });
-});
-
-function toggle(id, className, onLabel, offLabel) {
-  const button = document.getElementById(id);
-  button.addEventListener('click', () => {
-    const off = document.body.classList.toggle(className);
-    button.classList.toggle('is-on', !off);
-    button.textContent = off ? offLabel : onLabel;
-  });
-}
-toggle('toggle-avatars', 'no-avatars', 'الصور', 'بدون صور');
-
-document.getElementById('toggle-bar').addEventListener('click', (e) => {
-  const bar = document.getElementById('bar');
-  const off = bar.classList.toggle('is-off');
-  e.target.classList.toggle('is-on', !off);
-});
-
-document.getElementById('toggle-sound').addEventListener('click', (e) => {
-  soundOn = !soundOn;
-  e.target.classList.toggle('is-on', soundOn);
-  e.target.textContent = soundOn ? 'الصوت' : 'صامت';
-  if (soundOn) note(880, 0, 0.1);
-});
-
-document.getElementById('test-sound').addEventListener('click', () => { audio(); victory(); shreds(); });
+applyAll(prefs);
 </script>
 </body>
 </html>
