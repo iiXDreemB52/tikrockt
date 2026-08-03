@@ -112,7 +112,10 @@
         <span class="launch-btn__hint" id="draw-hint">عدّ تنازلي ٣٠ ثانية ثم يُسحب الفائز</span>
       </button>
 
-      <button class="launch-now" id="btn-now">اسحب الآن بدون عدّ</button>
+      <div class="mode" id="start-mode" role="group" aria-label="سلوك زر ابدأ">
+        <button data-mode="countdown">عدّ تنازلي</button>
+        <button data-mode="instant">سحب فوري</button>
+      </div>
 
       <div class="countdown is-hidden" id="countdown">
         <div class="countdown__row">
@@ -263,7 +266,7 @@
         <button class="btn btn--dark" id="btn-clear-list">مسح قائمة المشاركين</button>
         <button class="btn btn--dark" id="btn-clear-history">مسح سجل الفائزين</button>
         <button class="btn btn--dark" id="btn-demo">إضافة ١٢ مشاركًا تجريبيًا</button>
-        <a class="btn btn--dark" href="/api/participants.csv">تنزيل القائمة CSV</a>
+        <a class="btn btn--dark" id="csv-link" href="/api/participants.csv">تنزيل القائمة CSV</a>
       </div>
     </div>
 
@@ -395,9 +398,13 @@
       </section>
     </div>
 
-    <footer class="modal__foot">
-      <span class="modal__note">يُطبَّق فورًا على الشاشات المفتوحة · داخل الشاشة نفسها اضغط V لفتح لوحتها</span>
-      <a class="modal__save" id="screens-open" href="/players.html" target="_blank" rel="noopener">فتح الشاشة</a>
+    <footer class="modal__foot modal__foot--stack">
+      <div class="link-row">
+        <input class="link-row__input" id="screen-link" type="text" readonly>
+        <button class="chip" id="screen-copy">نسخ الرابط</button>
+        <a class="modal__save" id="screens-open" href="/players.html" target="_blank" rel="noopener">فتح</a>
+      </div>
+      <span class="modal__note">الصق الرابط في تيك توك ستديو أو OBS · داخل الشاشة اضغط V لفتح لوحتها</span>
     </footer>
   </div>
 </div>
