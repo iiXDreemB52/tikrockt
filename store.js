@@ -1,27 +1,29 @@
 'use strict';
 
 /* ══════════════════════════════════════════════════════════════
-   طبقة التخزين
+   طبقة التخزين — مقسّمة على غرف (rooms)
 
-   • إذا كان DATABASE_URL موجودًا (Neon) → يحفظ في Postgres.
-   • إذا ما كان موجودًا → يحفظ في ملفات داخل data/ (للتشغيل المحلي).
+   كل مستخدم للموقع له غرفة مستقلة: إعداداته ومشاركوه وفائزوه
+   منفصلون تمامًا عن غيره.
 
-   السبب: نظام ملفات Render مؤقّت، أي شي تكتبه على القرص
-   يضيع مع كل إعادة تشغيل أو نشر جديد.
+   • DATABASE_URL موجود (Neon)  → Postgres، وهذا المطلوب عند النشر.
+   • غير موجود                  → ملفات داخل data/ للتجربة المحلية.
    ══════════════════════════════════════════════════════════════ */
 
 const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, 'data');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
-const WINNERS_FILE = path.join(DATA_DIR, 'winners.json');
-
+const ROOMS_DIR = path.join(DATA_DIR, 'rooms');
 const DATABASE_URL = process.env.DATABASE_URL || '';
 
 let pool = null;
 
 /* ─────────── وضع الملفات ─────────── */
+
+function roomFile(roomId, suffix) {
+  return path.join(ROOMS_DIR, `${roomId}.${suffix}.json`);
+}
 
 function readJson(file, fallback) {
   try {
@@ -32,7 +34,7 @@ function readJson(file, fallback) {
 }
 
 function writeJson(file, value) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(value, null, 2), 'utf8');
 }
 
@@ -40,39 +42,41 @@ function writeJson(file, value) {
 
 async function init() {
   if (!DATABASE_URL) {
-    console.log('💾 التخزين: ملفات محلية (data/) — بدون قاعدة بيانات');
+    console.log('التخزين: ملفات محلية (data/rooms) — بدون قاعدة بيانات');
+    console.log('         عند النشر ضع DATABASE_URL وإلا ضاعت البيانات مع كل إعادة تشغيل.');
     return 'file';
   }
 
   try {
     const { Pool } = require('pg');
 
-    // نشيل sslmode/channel_binding من الرابط لأننا نضبط SSL يدويًا تحت
+    // نزيل sslmode/channel_binding من الرابط لأننا نضبط SSL يدويًا
     let connectionString = DATABASE_URL;
     try {
       const url = new URL(DATABASE_URL);
       url.searchParams.delete('sslmode');
       url.searchParams.delete('channel_binding');
       connectionString = url.toString();
-    } catch (_) { /* رابط غير قياسي — نستخدمه كما هو */ }
+    } catch (_) { /* رابط غير قياسي */ }
 
     pool = new Pool({
       connectionString,
       ssl: { rejectUnauthorized: false },
-      max: 3,
+      max: 5,
       idleTimeoutMillis: 20000,
     });
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS app_config (
-        id         INT PRIMARY KEY,
-        data       JSONB NOT NULL,
+      CREATE TABLE IF NOT EXISTS rooms (
+        id         TEXT PRIMARY KEY,
+        config     JSONB NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS winners (
         id      BIGSERIAL PRIMARY KEY,
+        room_id TEXT,
         user_id TEXT NOT NULL,
         handle  TEXT,
         name    TEXT,
@@ -80,63 +84,94 @@ async function init() {
         won_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       )`);
 
-    console.log('💾 التخزين: Postgres (Neon) — متصل');
+    // ترقية من النسخة القديمة (جدول فائزين بدون غرف)
+    await pool.query('ALTER TABLE winners ADD COLUMN IF NOT EXISTS room_id TEXT');
+    await pool.query("UPDATE winners SET room_id = 'default' WHERE room_id IS NULL");
+    await pool.query('CREATE INDEX IF NOT EXISTS winners_room_idx ON winners (room_id, won_at DESC)');
+
+    await migrateLegacyConfig();
+
+    console.log('التخزين: Postgres (Neon) — متصل');
     return 'pg';
   } catch (err) {
-    console.error('⚠️ فشل الاتصال بقاعدة البيانات، سأستخدم الملفات:', err.message);
+    console.error('فشل الاتصال بقاعدة البيانات، سأستخدم الملفات:', err.message);
     pool = null;
     return 'file';
   }
 }
 
-/* ─────────── الإعدادات ─────────── */
+// نقل إعدادات النسخة القديمة (app_config) إلى غرفة اسمها default
+async function migrateLegacyConfig() {
+  try {
+    const { rows } = await pool.query("SELECT to_regclass('public.app_config') IS NOT NULL AS exists");
+    if (!rows[0] || !rows[0].exists) return;
 
-async function loadConfig() {
+    const legacy = await pool.query('SELECT data FROM app_config WHERE id = 1');
+    if (!legacy.rows[0]) return;
+
+    const already = await pool.query('SELECT 1 FROM rooms WHERE id = $1', ['default']);
+    if (already.rows[0]) return;
+
+    await pool.query(
+      'INSERT INTO rooms (id, config) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
+      ['default', JSON.stringify(legacy.rows[0].data)]
+    );
+    console.log('تمت ترقية إعدادات النسخة القديمة إلى الغرفة default');
+  } catch (err) {
+    console.error('تعذّرت ترقية البيانات القديمة:', err.message);
+  }
+}
+
+/* ─────────── الإعدادات لكل غرفة ─────────── */
+
+async function loadConfig(roomId) {
   if (pool) {
     try {
-      const { rows } = await pool.query('SELECT data FROM app_config WHERE id = 1');
-      return rows[0]?.data || null;
+      const { rows } = await pool.query('SELECT config FROM rooms WHERE id = $1', [roomId]);
+      return rows[0] ? rows[0].config : null;
     } catch (err) {
-      console.error('⚠️ تعذّرت قراءة الإعدادات:', err.message);
+      console.error('تعذّرت قراءة إعدادات الغرفة:', err.message);
       return null;
     }
   }
-  return readJson(CONFIG_FILE, null);
+  return readJson(roomFile(roomId, 'config'), null);
 }
 
-async function saveConfig(config) {
+async function saveConfig(roomId, config) {
   if (pool) {
     await pool.query(
-      `INSERT INTO app_config (id, data, updated_at) VALUES (1, $1, now())
-       ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = now()`,
-      [JSON.stringify(config)]
+      `INSERT INTO rooms (id, config, updated_at) VALUES ($1, $2, now())
+       ON CONFLICT (id) DO UPDATE SET config = $2, updated_at = now()`,
+      [roomId, JSON.stringify(config)]
     );
     return;
   }
-  writeJson(CONFIG_FILE, config);
+  writeJson(roomFile(roomId, 'config'), config);
 }
 
-/* ─────────── الفائزون ─────────── */
+/* ─────────── الفائزون لكل غرفة ─────────── */
 
-async function saveWinner(winner) {
+async function saveWinner(roomId, winner) {
   if (pool) {
     await pool.query(
-      'INSERT INTO winners (user_id, handle, name, avatar) VALUES ($1, $2, $3, $4)',
-      [winner.id, winner.handle || '', winner.name || '', winner.avatar || '']
+      'INSERT INTO winners (room_id, user_id, handle, name, avatar) VALUES ($1, $2, $3, $4, $5)',
+      [roomId, winner.id, winner.handle || '', winner.name || '', winner.avatar || '']
     );
     return;
   }
-  const list = readJson(WINNERS_FILE, []);
+  const file = roomFile(roomId, 'winners');
+  const list = readJson(file, []);
   list.unshift({ ...winner, wonAt: Date.now() });
-  writeJson(WINNERS_FILE, list.slice(0, 200));
+  writeJson(file, list.slice(0, 200));
 }
 
-async function loadWinners(limit = 50) {
+async function loadWinners(roomId, limit = 50) {
   if (pool) {
     try {
       const { rows } = await pool.query(
-        'SELECT user_id, handle, name, avatar, won_at FROM winners ORDER BY won_at DESC LIMIT $1',
-        [limit]
+        `SELECT user_id, handle, name, avatar, won_at FROM winners
+         WHERE room_id = $1 ORDER BY won_at DESC LIMIT $2`,
+        [roomId, limit]
       );
       return rows.map((r) => ({
         id: r.user_id,
@@ -146,19 +181,29 @@ async function loadWinners(limit = 50) {
         wonAt: new Date(r.won_at).getTime(),
       }));
     } catch (err) {
-      console.error('⚠️ تعذّرت قراءة سجل الفائزين:', err.message);
+      console.error('تعذّرت قراءة سجل الفائزين:', err.message);
       return [];
     }
   }
-  return readJson(WINNERS_FILE, []).slice(0, limit);
+  return readJson(roomFile(roomId, 'winners'), []).slice(0, limit);
 }
 
-async function clearWinners() {
+async function clearWinners(roomId) {
   if (pool) {
-    await pool.query('DELETE FROM winners');
+    await pool.query('DELETE FROM winners WHERE room_id = $1', [roomId]);
     return;
   }
-  writeJson(WINNERS_FILE, []);
+  writeJson(roomFile(roomId, 'winners'), []);
 }
 
-module.exports = { init, loadConfig, saveConfig, saveWinner, loadWinners, clearWinners };
+async function health() {
+  if (!pool) return { driver: 'file' };
+  try {
+    const { rows } = await pool.query('SELECT count(*)::int AS rooms FROM rooms');
+    return { driver: 'postgres', rooms: rows[0].rooms };
+  } catch (err) {
+    return { driver: 'postgres', error: err.message };
+  }
+}
+
+module.exports = { init, loadConfig, saveConfig, saveWinner, loadWinners, clearWinners, health };
