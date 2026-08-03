@@ -67,6 +67,11 @@ const Overlay = (() => {
   }
 
   function get(name) { return prefs[name]; }
+
+  // معرّف الغرفة يأتي من الرابط الذي ينسخه المستخدم من الموقع
+  function room() {
+    return String(params.get('room') || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32) || 'default';
+  }
   function all() { return { ...prefs }; }
   function isLocked(name) { return locked.has(name); }
 
@@ -259,7 +264,7 @@ const Overlay = (() => {
   }
 
   return {
-    init, get, set, all, isLocked, fromServer,
+    init, get, set, all, isLocked, fromServer, room,
     applyBackground, applySize, BACKGROUNDS,
     tone, noise, tick, blip, urgent, victory, setMuted, isMuted, bindAudioNote, context,
     shreds, keyPanel, openPanel, closePanel, togglePanel,
