@@ -27,28 +27,26 @@
   /* ═══ تلميح كلمة الدخول ═══ */
 
   .stream-hint {
-    flex: none;
+    align-self: flex-start;
+    display: inline-block;
     margin: 0;
+    padding: 9px 18px 10px;
+    border-radius: 8px;
+    background: var(--paper);
+    box-shadow: var(--lift);
     font-size: calc(var(--size) * .5);
     font-weight: 700;
     color: var(--graphite);
-    text-shadow:
-      0 0 6px var(--paper),
-      1px 0 var(--paper), -1px 0 var(--paper),
-      0 1px var(--paper), 0 -1px var(--paper);
   }
   .stream-hint b {
     display: inline-block;
     margin: 0 3px;
+    vertical-align: middle;
     font-family: var(--display);
     font-weight: 800;
-    font-size: calc(var(--size) * 1.55);
+    font-size: calc(var(--size) * 1.4);
     line-height: 1;
     color: var(--signal);
-    text-shadow:
-      0 0 10px var(--paper),
-      1px 0 var(--paper), -1px 0 var(--paper),
-      0 1px var(--paper), 0 -1px var(--paper);
   }
   body.no-hint .stream-hint { display: none; }
 
@@ -232,7 +230,7 @@
 <body>
 
 <div class="screen">
-  <p class="stream-hint" id="stream-hint">اكتب <b id="hint-word">بلعب</b> في الشات ليُسجَّل اسمك</p>
+  <p class="stream-hint" id="stream-hint">اكتب <b id="hint-word">بلعب</b> في الشات للمشاركة</p>
 
   <div class="bar">
     <span class="pill"><span class="pill__label">المشاركون</span><b id="count">٠</b></span>
