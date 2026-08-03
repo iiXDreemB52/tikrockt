@@ -281,7 +281,7 @@
 <script>
 'use strict';
 
-const socket = io();
+const socket = io({ query: { room: Overlay.room() } });
 
 const rosterEl = document.getElementById('roster');
 const countEl = document.getElementById('count');
