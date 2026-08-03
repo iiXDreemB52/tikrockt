@@ -30,7 +30,62 @@ const DEFAULT_CONFIG = {
   joinDuringRoundOnly: false,// true = التسجيل يُقبل فقط أثناء العد التنازلي
   stopWhenFull: true,        // إنهاء العد فورًا عند اكتمال العدد
   sound: { enabled: true, volume: 0.6 },
+
+  // ضبط شاشات البث — يُعدَّل من الموقع ويُطبَّق مباشرة على الشاشات المفتوحة
+  overlay: {
+    players: {
+      bg: 'transparent', size: 26, layout: 'grid', cols: 'auto',
+      align: 'start', max: 0, faces: true, bar: true, sound: true,
+    },
+    events: {
+      bg: 'transparent', size: 22, rows: 8, fade: 0,
+      filter: 'all', dir: 'down', width: 100, time: true,
+    },
+  },
 };
+
+const OVERLAY_RULES = {
+  players: {
+    bg: ['transparent', 'green', 'blue', 'magenta', 'dark'],
+    size: [10, 80],
+    layout: ['grid', 'list'],
+    cols: ['auto', '1', '2', '3', '4', '5'],
+    align: ['start', 'center', 'end'],
+    max: [0, 200],
+    faces: 'bool', bar: 'bool', sound: 'bool',
+  },
+  events: {
+    bg: ['transparent', 'green', 'blue', 'magenta', 'dark'],
+    size: [10, 64],
+    rows: [1, 30],
+    fade: [0, 120],
+    filter: ['all', 'join', 'winner', 'round', 'connection'],
+    dir: ['up', 'down'],
+    width: [20, 100],
+    time: 'bool',
+  },
+};
+
+function sanitizeOverlay(screen, input = {}, base = DEFAULT_CONFIG.overlay[screen]) {
+  const rules = OVERLAY_RULES[screen];
+  const out = { ...base };
+
+  Object.entries(rules).forEach(([key, rule]) => {
+    const value = input[key];
+    if (value === undefined) return;
+
+    if (rule === 'bool') {
+      out[key] = Boolean(value);
+    } else if (Array.isArray(rule) && typeof rule[0] === 'string') {
+      if (rule.includes(String(value))) out[key] = String(value);
+    } else if (Array.isArray(rule)) {
+      const n = Number.parseInt(value, 10);
+      if (!Number.isNaN(n)) out[key] = Math.min(Math.max(n, rule[0]), rule[1]);
+    }
+  });
+
+  return out;
+}
 
 const MAX_EVENTS = 400;
 
@@ -60,6 +115,10 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
     sound: {
       enabled: typeof soundInput.enabled === 'boolean' ? soundInput.enabled : base.sound.enabled,
       volume: Math.min(Math.max(Number(soundInput.volume ?? base.sound.volume) || 0, 0), 1),
+    },
+    overlay: {
+      players: sanitizeOverlay('players', (input.overlay || {}).players, (base.overlay || DEFAULT_CONFIG.overlay).players),
+      events: sanitizeOverlay('events', (input.overlay || {}).events, (base.overlay || DEFAULT_CONFIG.overlay).events),
     },
   };
 }
@@ -622,6 +681,14 @@ io.on('connection', (socket) => {
     if (keywordChanged) pushEvent('system', `كلمة الدخول صارت «${state.config.keyword}»`);
     else pushEvent('system', 'تم حفظ الإعدادات.');
     if (state.participants.size < state.config.maxParticipants) fullNotified = false;
+  });
+
+  socket.on('overlay:set', (payload = {}) => {
+    const screen = payload.screen === 'events' ? 'events' : 'players';
+    const patch = payload.patch || {};
+    state.config.overlay[screen] = sanitizeOverlay(screen, { ...state.config.overlay[screen], ...patch }, state.config.overlay[screen]);
+    saveConfig();
+    io.emit('overlay', { screen, settings: state.config.overlay[screen] });
   });
 
   socket.on('history:clear', () => {
