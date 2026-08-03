@@ -1,1026 +1,562 @@
-/* ══════════════════════════════════════════════════════════
-   الهوية: «لوحة القرعة»
-   تذاكر ورقية على لوحة إعلانات معدنية داكنة، وختم أحمر
-   على تذكرة الفائز.
-
-   الخط العريض: Baloo Bhaijaan 2 · النص: Readex Pro
-   الأرقام التسلسلية: Space Mono
-   ══════════════════════════════════════════════════════════ */
-
-:root {
-  /* اللوحة */
-  --ink:      #0B1E24;
-  --ink-2:    #0F2A31;
-  --ink-3:    #14383F;
-  --edge:     #1D4952;
-  --edge-2:   #2C6270;
-
-  /* الورق */
-  --paper:    #F4EEE2;
-  --paper-2:  #E7DDCA;
-  --paper-3:  #CDBFA6;
-  --graphite: #16262B;
-  --graphite-2: #566E75;
-
-  /* الإشارات */
-  --signal:   #FF4A2B;
-  --signal-2: #C3301A;
-  --gold:     #FFC53D;
-  --gold-2:   #EFA50C;
-  --gold-3:   #B87908;
-  --brass:    #3A2600;
-  --live:     #3ECF8E;
-
-  --mute:     #7E97A0;
-  --mute-2:   #55707A;
-
-  --r-1: 3px;
-  --r-2: 6px;
-  --r-3: 10px;
-
-  --display: 'Baloo Bhaijaan 2', system-ui, sans-serif;
-  --body:    'Readex Pro', system-ui, sans-serif;
-  --mono:    'Space Mono', ui-monospace, monospace;
-
-  --topbar-h: 56px;
-}
-
-* { box-sizing: border-box; }
-
-html, body {
-  margin: 0;
-  height: 100%;
-  background: var(--ink);
-  color: var(--paper);
-  font-family: var(--body);
-  font-size: 15px;
-  font-weight: 400;
-  -webkit-font-smoothing: antialiased;
-}
-
-body {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* ═══ الخلفية: لوحة إعلانات منقّطة مع تظليل جانبي ═══ */
-
-.board-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-color: var(--ink);
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(244, 238, 226, .055) 1px, transparent 1.6px),
-    linear-gradient(180deg, rgba(255, 197, 61, .05), transparent 320px),
-    radial-gradient(130% 90% at 50% 118%, rgba(0, 0, 0, .55), transparent 62%);
-  background-size: 24px 24px, 100% 100%, 100% 100%;
-}
-
-button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
-button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: var(--r-1); }
-.is-hidden { display: none !important; }
-
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-track { background: transparent; }
-
-/* ══════════════════════════════════════════════════════════
-   الشريط العلوي
-   ══════════════════════════════════════════════════════════ */
-
-.topbar {
-  position: relative;
-  z-index: 35;
-  flex: none;
-  height: var(--topbar-h);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 14px;
-  padding: 0 16px;
-  background: var(--ink-2);
-  border-bottom: 1px solid var(--edge);
-}
-
-.topbar__side { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.topbar__side--end { justify-content: flex-end; }
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 13px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-2);
-  background: transparent;
-  color: var(--mute);
-  font-size: 13px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: border-color .15s, color .15s, background .15s;
-}
-.chip:hover { border-color: var(--edge-2); color: var(--paper); background: rgba(255, 255, 255, .03); }
-.chip svg { width: 15px; height: 15px; flex: none; }
-.chip--icon { padding: 0 9px; }
-.chip--accent:hover { border-color: var(--live); color: var(--live); }
-
-/* ═══ حساب تيك توك — منتصف الشريط ═══ */
-
-.account { justify-self: center; min-width: 0; }
-
-.account__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  height: 36px;
-  max-width: min(68vw, 380px);
-  padding: 0 8px 0 14px;
-  border: 1px solid var(--edge-2);
-  border-radius: var(--r-2);
-  background: var(--ink-3);
-  color: var(--paper);
-  transition: border-color .15s, background .15s;
-}
-.account__pill:hover { border-color: var(--gold); background: #17424b; }
-.account__pill.is-empty { border-color: var(--gold); border-style: dashed; background: transparent; color: var(--gold); }
-
-.account__name {
-  font-family: var(--mono);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: .01em;
-  direction: ltr;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.account__edit {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding-inline-start: 9px;
-  border-inline-start: 1px solid var(--edge-2);
-  font-size: 11.5px;
-  color: var(--mute-2);
-}
-.account__pill:hover .account__edit { color: var(--gold); }
-.account__edit svg { width: 12px; height: 12px; }
-
-.account__form {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 6px 0 12px;
-  border: 1px solid var(--gold);
-  border-radius: var(--r-2);
-  background: var(--ink-3);
-}
-.account__at { font-family: var(--mono); font-size: 13px; color: var(--mute); }
-.account__input {
-  border: 0;
-  background: transparent;
-  outline: none;
-  width: min(44vw, 220px);
-  font-family: var(--mono);
-  font-size: 14px;
-  direction: ltr;
-  text-align: left;
-}
-.account__save, .account__cancel {
-  border: 0;
-  border-radius: var(--r-1);
-  height: 26px;
-  padding: 0 13px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.account__save { background: var(--gold); color: var(--brass); }
-.account__cancel { background: transparent; color: var(--mute-2); }
-.account__cancel:hover { color: var(--signal); }
-
-/* ═══ حالة الاتصال ═══ */
-
-.conn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(46vw, 280px);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--mute);
-}
-.conn__dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--mute-2); }
-.conn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conn.is-connected  .conn__dot { background: var(--live); box-shadow: 0 0 0 3px rgba(62, 207, 142, .18); }
-.conn.is-connecting .conn__dot { background: var(--gold); animation: blink 1s steps(2) infinite; }
-.conn.is-error .conn__dot,
-.conn.is-disconnected .conn__dot { background: var(--signal); }
-
-@keyframes blink { 50% { opacity: .25; } }
-
-/* ══════════════════════════════════════════════════════════
-   شريط كلمة الدخول
-   ══════════════════════════════════════════════════════════ */
-
-.hint {
-  position: relative;
-  z-index: 10;
-  flex: none;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 11px 16px;
-  background: rgba(255, 74, 43, .1);
-  border-bottom: 1px solid rgba(255, 74, 43, .3);
-  color: #FF7A5E;
-  font-size: 14px;
-  font-weight: 500;
-}
-.hint__word {
-  padding: 3px 14px;
-  border-radius: var(--r-1);
-  background: var(--signal);
-  color: #2B0A03;
-  font-weight: 600;
-  letter-spacing: .01em;
-}
-.hint__closed {
-  padding-inline-start: 10px;
-  border-inline-start: 1px solid rgba(255, 122, 94, .35);
-  color: var(--mute);
-  font-size: 12.5px;
-}
-body.join-closed .hint { background: rgba(255, 255, 255, .03); border-bottom-color: var(--edge); color: var(--mute); }
-body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
-
-/* ══════════════════════════════════════════════════════════
-   التخطيط
-   ══════════════════════════════════════════════════════════ */
-
-.stage {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr clamp(292px, 25vw, 360px);
-}
-.stage[hidden] { display: none; }
-
-/* ═══ لوحة التذاكر ═══ */
-
-.board { position: relative; overflow-y: auto; padding: 20px 22px 44px; }
-
-.board__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
-  gap: 11px 12px;
-  align-content: start;
-}
-
-/* ═══ التذكرة ═══ */
-
-.stub {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 11px 13px 11px 40px;
-  border-radius: var(--r-1);
-  background: var(--paper);
-  color: var(--graphite);
-  box-shadow: 0 1px 0 var(--paper-3), 0 10px 18px -14px rgba(0, 0, 0, .9);
-  animation: stub-in .28s cubic-bezier(.2, .9, .3, 1.3) both;
-}
-
-/* ثقبا التخريم أعلى وأسفل خط القص */
-.stub::before, .stub::after {
-  content: '';
-  position: absolute;
-  inset-inline-start: 26px;
-  width: 11px; height: 11px;
-  border-radius: 50%;
-  background: var(--ink);
-}
-.stub::before { top: -6px; }
-.stub::after  { bottom: -6px; }
-
-.stub__perf {
-  position: absolute;
-  inset-block: 5px;
-  inset-inline-start: 31.5px;
-  border-inline-start: 1px dashed var(--paper-3);
-}
-
-.stub__no {
-  position: absolute;
-  inset-inline-start: 9px;
-  top: 50%;
-  transform: translateY(-50%) rotate(180deg);
-  writing-mode: vertical-rl;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .16em;
-  color: var(--graphite-2);
-}
-
-.stub__avatar {
-  width: 36px; height: 36px;
-  flex: none;
-  border-radius: var(--r-1);
-  background: var(--paper-2);
-  color: var(--graphite-2);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 700;
-}
-.stub__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-.stub__meta { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.stub__name {
-  font-size: 14.5px;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.stub__handle {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--graphite-2);
-  direction: ltr;
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* المؤشر أثناء الخلط */
-.stub.is-spot {
-  z-index: 3;
-  transform: scale(1.045);
-  box-shadow: 0 0 0 2px var(--gold), 0 0 0 8px rgba(255, 197, 61, .16), 0 16px 26px -16px #000;
-}
-
-/* الختم على تذكرة الفائز */
-.stub__stamp {
-  position: absolute;
-  inset-inline-end: 10px;
-  top: 50%;
-  opacity: 0;
-  pointer-events: none;
-  padding: 2px 11px 3px;
-  border: 3px solid var(--signal-2);
-  border-radius: var(--r-1);
-  color: var(--signal-2);
-  font-family: var(--display);
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: .04em;
-  mix-blend-mode: multiply;
-  transform: translateY(-50%) rotate(-13deg);
-}
-.stub.is-torn { transform: rotate(-1.2deg); }
-.stub.is-torn .stub__stamp { animation: stamp .4s cubic-bezier(.2, 1.3, .3, 1) forwards; }
-
-@keyframes stamp {
-  0%   { opacity: 0;   transform: translateY(-50%) rotate(-13deg) scale(2.4); }
-  55%  { opacity: .95; transform: translateY(-50%) rotate(-13deg) scale(.92); }
-  100% { opacity: .88; transform: translateY(-50%) rotate(-13deg) scale(1); }
-}
-
-@keyframes stub-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: none; }
-}
-
-/* ═══ اللوحة فارغة ═══ */
-
-.empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 4px;
-  text-align: center;
-  padding: 24px;
-  pointer-events: none;
-}
-.empty svg { width: 96px; height: 62px; opacity: .3; margin-bottom: 12px; }
-.empty__title { margin: 0; font-family: var(--display); font-size: 21px; font-weight: 700; color: var(--paper); }
-.empty__body  { margin: 0; max-width: 42ch; font-size: 13.5px; line-height: 1.7; color: var(--mute); }
-.empty__body b { color: var(--gold); font-weight: 600; }
-
-/* ══════════════════════════════════════════════════════════
-   لوحة التحكم الجانبية
-   ══════════════════════════════════════════════════════════ */
-
-.console {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 22px 20px;
-  overflow-y: auto;
-  background: var(--ink-2);
-  border-inline-start: 1px solid var(--edge);
-  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .014) 0 2px, transparent 2px 7px);
-}
-
-.label {
-  margin: 0 0 8px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: .14em;
-  color: var(--mute-2);
-}
-
-/* ═══ العدّاد ═══ */
-
-.tally__num {
-  display: block;
-  font-family: var(--display);
-  font-size: clamp(58px, 8vw, 96px);
-  font-weight: 800;
-  line-height: .84;
-  letter-spacing: -.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--paper);
-}
-.tally__num.is-full { color: var(--gold); }
-.tally__foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 10px; }
-.tally__word { font-size: 13px; color: var(--mute); }
-.tally__cap  { font-family: var(--mono); font-size: 11.5px; color: var(--mute-2); }
-
-.tally__bar { height: 5px; margin-top: 8px; border-radius: 99px; background: var(--ink); overflow: hidden; }
-.tally__bar > i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .35s ease; }
-
-/* ═══ آخر الفائزين ═══ */
-
-.recent { min-height: 0; margin-bottom: auto; }
-.recent__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
-.recent__item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, .05);
-  font-size: 13px;
-}
-.recent__item:last-child { border-bottom: 0; }
-.recent__rank {
-  flex: none;
-  width: 16px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--gold);
-}
-.recent__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--paper); }
-.recent__handle {
-  margin-inline-start: auto;
-  flex: none;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--mute-2);
-  direction: ltr;
-}
-
-/* ═══ زر الإطلاق ═══ */
-
-.launch { margin-top: 0; }
-
-.launch-btn {
-  position: relative;
-  width: 100%;
-  display: block;
-  padding: 20px 16px 21px;
-  border: 1px solid #FFDF9A;
-  border-bottom: 4px solid var(--gold-3);
-  border-radius: var(--r-3);
-  background: linear-gradient(180deg, #FFD976 0%, var(--gold) 42%, var(--gold-2) 100%);
-  color: var(--brass);
-  box-shadow: 0 14px 28px -18px rgba(255, 197, 61, .9);
-  transition: transform .1s, border-bottom-width .1s, filter .18s;
-}
-.launch-btn__label {
-  display: block;
-  font-family: var(--display);
-  font-size: 33px;
-  font-weight: 800;
-  line-height: 1;
-}
-.launch-btn__hint { display: block; margin-top: 5px; font-size: 11.5px; font-weight: 500; color: #7A5305; }
-
-.launch-btn:hover:not(:disabled) { filter: brightness(1.05); }
-.launch-btn:active:not(:disabled) { transform: translateY(3px); border-bottom-width: 1px; }
-.launch-btn:disabled { filter: grayscale(.65) brightness(.72); box-shadow: none; }
-.launch-btn.is-drawing { animation: drawing .5s ease-in-out infinite; }
-
-@keyframes drawing {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 197, 61, .5); }
-  50%      { box-shadow: 0 0 0 10px rgba(255, 197, 61, 0); }
-}
-
-/* ═══ العد التنازلي ═══ */
-
-.countdown {
-  margin-top: 14px;
-  padding: 14px 15px 15px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-2);
-  background: var(--ink);
-}
-.countdown__row { display: flex; align-items: baseline; gap: 8px; }
-.countdown__num {
-  font-family: var(--display);
-  font-size: 46px;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--gold);
-  font-variant-numeric: tabular-nums;
-}
-.countdown__unit { font-size: 12.5px; color: var(--mute); }
-.countdown__cancel {
-  margin-inline-start: auto;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-1);
-  background: transparent;
-  color: var(--mute);
-  padding: 5px 11px;
-  font-size: 12px;
-}
-.countdown__cancel:hover { border-color: var(--signal); color: var(--signal); }
-
-.countdown__bar { height: 5px; margin: 11px 0 9px; border-radius: 99px; background: var(--ink-3); overflow: hidden; }
-.countdown__bar > i { display: block; height: 100%; width: 100%; background: var(--gold); transition: width 1s linear; }
-
-.countdown__label { margin: 0; font-size: 11.5px; color: var(--mute); }
-.countdown__label b { color: var(--gold); font-weight: 600; }
-
-.countdown.is-urgent { border-color: rgba(255, 74, 43, .5); }
-.countdown.is-urgent .countdown__num { color: var(--signal); }
-.countdown.is-urgent .countdown__bar > i { background: var(--signal); }
-
-/* ══════════════════════════════════════════════════════════
-   شاشة الفائز
-   ══════════════════════════════════════════════════════════ */
-
-.winner {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  grid-template-rows: auto auto;
-  align-content: center;
-  gap: 18px;
-  padding: calc(var(--topbar-h) + 24px) 26px 26px;
-  background:
-    radial-gradient(90% 70% at 50% 0%, rgba(255, 197, 61, .13), transparent 62%),
-    var(--ink);
-  overflow: hidden;
-  animation: rise .3s ease both;
-}
-.winner[hidden] { display: none; }
-
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-.winner__shreds { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
-.winner__shreds i {
-  position: absolute;
-  top: -12vh;
-  width: 8px; height: 14px;
-  opacity: .9;
-  animation: fall linear forwards;
-}
-@keyframes fall {
-  to { transform: translateY(118vh) rotate(680deg); opacity: 0; }
-}
-
-.winner__card {
-  position: relative;
-  z-index: 2;
-  justify-self: center;
-  width: min(880px, 100%);
-  display: flex;
-  align-items: center;
-  gap: 26px;
-  flex-wrap: wrap;
-  padding: 26px 30px 28px 44px;
-  border-radius: var(--r-2);
-  background: var(--paper);
-  color: var(--graphite);
-  box-shadow: 0 2px 0 var(--paper-3), 0 30px 60px -30px #000;
-}
-.winner__card::before, .winner__card::after {
-  content: '';
-  position: absolute;
-  inset-inline-start: 28px;
-  width: 16px; height: 16px;
-  border-radius: 50%;
-  background: var(--ink);
-}
-.winner__card::before { top: -8px; }
-.winner__card::after  { bottom: -8px; }
-.winner__perf { position: absolute; inset-block: 8px; inset-inline-start: 35px; border-inline-start: 2px dashed var(--paper-3); }
-
-.winner__eyebrow {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .18em;
-  color: var(--graphite-2);
-}
-.winner__id { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1; }
-.winner__avatar {
-  width: 92px; height: 92px;
-  flex: none;
-  border-radius: var(--r-2);
-  overflow: hidden;
-  background: var(--paper-2);
-  color: var(--graphite-2);
-  display: grid;
-  place-items: center;
-  font-family: var(--display);
-  font-size: 40px;
-  font-weight: 800;
-}
-.winner__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-.winner__name {
-  margin: 0;
-  font-family: var(--display);
-  font-size: clamp(34px, 5.4vw, 64px);
-  font-weight: 800;
-  line-height: 1.06;
-  letter-spacing: -.015em;
-  word-break: break-word;
-}
-.winner__handle { margin: 4px 0 0; font-family: var(--mono); font-size: 15px; color: var(--graphite-2); direction: ltr; text-align: right; }
-
-.winner__stamp {
-  position: absolute;
-  top: 18px;
-  inset-inline-end: 26px;
-  padding: 4px 16px 6px;
-  border: 4px solid var(--signal-2);
-  border-radius: var(--r-2);
-  color: var(--signal-2);
-  font-family: var(--display);
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  mix-blend-mode: multiply;
-  transform: rotate(-12deg);
-  animation: stamp-big .45s cubic-bezier(.2, 1.3, .3, 1) both;
-}
-@keyframes stamp-big {
-  0%   { opacity: 0; transform: rotate(-12deg) scale(2.6); }
-  55%  { opacity: 1; transform: rotate(-12deg) scale(.93); }
-  100% { opacity: .92; transform: rotate(-12deg) scale(1); }
-}
-
-.winner__actions { display: flex; gap: 10px; flex-wrap: wrap; }
-
-.btn {
-  border: 1px solid transparent;
-  border-radius: var(--r-2);
-  padding: 11px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-  text-align: center;
-  transition: filter .15s, border-color .15s, color .15s;
-}
-.btn--go { background: var(--graphite); color: var(--paper); }
-.btn--go:hover { filter: brightness(1.35); }
-.btn--quiet { background: transparent; border-color: var(--paper-3); color: var(--graphite-2); }
-.btn--quiet:hover { border-color: var(--graphite-2); color: var(--graphite); }
-.btn--dark { background: transparent; border-color: var(--edge); color: var(--mute); }
-.btn--dark:hover { border-color: var(--edge-2); color: var(--paper); }
-
-/* ═══ رسائل الفائز ═══ */
-
-.thread {
-  position: relative;
-  z-index: 2;
-  justify-self: center;
-  width: min(880px, 100%);
-  min-height: 150px;
-  max-height: min(40vh, 340px);
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-2);
-  background: var(--ink-2);
-  overflow: hidden;
-}
-.thread__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 11px 16px;
-  border-bottom: 1px solid var(--edge);
-  font-size: 12.5px;
-  color: var(--mute);
-}
-.thread__live { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; color: var(--live); }
-.thread__live i { width: 6px; height: 6px; border-radius: 50%; background: var(--live); animation: blink 1.4s steps(2) infinite; }
-
-.thread__body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
-.thread__wait { margin: 0; padding: 0 16px 16px; font-size: 12.5px; color: var(--mute-2); }
-.thread__wait.is-hidden { display: none; }
-
-.bubble {
-  align-self: flex-start;
-  max-width: 76%;
-  padding: 9px 14px 10px;
-  border-radius: var(--r-2);
-  background: var(--paper);
-  color: var(--graphite);
-  font-size: 14.5px;
-  line-height: 1.5;
-  animation: stub-in .2s ease both;
-}
-.bubble__time { display: block; margin-top: 3px; font-family: var(--mono); font-size: 10px; color: var(--graphite-2); }
-
-/* ══════════════════════════════════════════════════════════
-   سجل الأحداث
-   ══════════════════════════════════════════════════════════ */
-
-.drawer {
-  position: fixed;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: min(420px, 92vw);
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  background: var(--ink-2);
-  border-inline-end: 1px solid var(--edge);
-  box-shadow: 30px 0 60px -30px #000;
-  animation: slide-in .24s ease both;
-}
-.drawer[hidden] { display: none; }
-@keyframes slide-in { from { opacity: 0; transform: translateX(-4%); } to { opacity: 1; transform: none; } }
-
-.drawer__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--edge);
-}
-.drawer__title { margin: 0; font-family: var(--display); font-size: 17px; font-weight: 700; }
-.drawer__tools { display: flex; gap: 6px; }
-
-.drawer__filters { display: flex; gap: 6px; flex-wrap: wrap; padding: 11px 16px; border-bottom: 1px solid var(--edge); }
-.tag {
-  border: 1px solid var(--edge);
-  border-radius: var(--r-1);
-  background: transparent;
-  color: var(--mute-2);
-  padding: 5px 11px;
-  font-size: 11.5px;
-  font-weight: 500;
-}
-.tag:hover { color: var(--paper); }
-.tag.is-on { border-color: var(--gold); color: var(--gold); }
-
-.drawer__body { flex: 1; overflow-y: auto; padding: 10px 12px 24px; }
-
-.event {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: baseline;
-  gap: 9px;
-  padding: 8px 11px;
-  margin-bottom: 4px;
-  border-inline-start: 3px solid var(--edge-2);
-  border-radius: 0 var(--r-1) var(--r-1) 0;
-  background: rgba(255, 255, 255, .022);
-  font-size: 13px;
-  line-height: 1.5;
-  animation: stub-in .18s ease both;
-}
-.event__tag {
-  width: 40px;
-  flex: none;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .06em;
-  color: var(--mute-2);
-}
-.event__text { min-width: 0; overflow-wrap: anywhere; }
-.event__time { font-family: var(--mono); font-size: 10px; color: var(--mute-2); }
-
-.event--join    { border-inline-start-color: var(--live); }
-.event--join    .event__tag { color: var(--live); }
-.event--winner  { border-inline-start-color: var(--gold); background: rgba(255, 197, 61, .09); font-weight: 600; }
-.event--winner  .event__tag { color: var(--gold); }
-.event--round   { border-inline-start-color: var(--paper-3); }
-.event--error   { border-inline-start-color: var(--signal); color: #FFB3A2; }
-.event--error   .event__tag { color: var(--signal); }
-.event--connection { border-inline-start-color: var(--edge-2); }
-
-/* ══════════════════════════════════════════════════════════
-   الإعدادات
-   ══════════════════════════════════════════════════════════ */
-
-.modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; }
-.modal[hidden] { display: none; }
-.modal__backdrop { position: absolute; inset: 0; background: rgba(4, 12, 15, .78); }
-
-.modal__box {
-  position: relative;
-  width: min(700px, 100%);
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--ink-2);
-  border: 1px solid var(--edge);
-  border-radius: var(--r-3);
-  box-shadow: 0 40px 80px -30px #000;
-  animation: rise .22s ease both;
-}
-.modal__head, .modal__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 15px 18px;
-}
-.modal__head { border-bottom: 1px solid var(--edge); }
-.modal__foot { border-top: 1px solid var(--edge); }
-.modal__title { margin: 0; font-family: var(--display); font-size: 18px; font-weight: 700; }
-.modal__note { font-size: 12px; color: var(--live); }
-.modal__save { background: var(--gold); border: 0; border-radius: var(--r-2); color: var(--brass); padding: 11px 24px; font-size: 14px; font-weight: 700; }
-.modal__save:hover { filter: brightness(1.06); }
-
-.modal__body {
-  overflow-y: auto;
-  padding: 18px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px 16px;
-}
-
-.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field--wide { grid-column: 1 / -1; }
-.field > label { font-size: 12.5px; font-weight: 500; color: var(--paper); }
-.field small { font-size: 11px; line-height: 1.6; color: var(--mute-2); }
-.field input[type="text"],
-.field input[type="number"],
-.field select {
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-2);
-  background: var(--ink);
-  color: var(--paper);
-  outline: none;
-}
-.field input:focus, .field select:focus { border-color: var(--gold); }
-.field input[type="range"] { accent-color: var(--gold); }
-
-.switches { display: grid; gap: 11px; }
-.switch { display: flex; align-items: center; gap: 11px; font-size: 13.5px; }
-.switch input { position: absolute; opacity: 0; pointer-events: none; }
-.switch span {
-  position: relative;
-  width: 38px; height: 21px;
-  flex: none;
-  border-radius: 99px;
-  background: var(--ink);
-  border: 1px solid var(--edge);
-  transition: background .15s, border-color .15s;
-}
-.switch span::after {
-  content: '';
-  position: absolute;
-  top: 2px; inset-inline-start: 2px;
-  width: 15px; height: 15px;
-  border-radius: 50%;
-  background: var(--mute-2);
-  transition: transform .16s, background .16s;
-}
-.switch input:checked + span { border-color: var(--gold); background: rgba(255, 197, 61, .16); }
-.switch input:checked + span::after { background: var(--gold); transform: translateX(-17px); }
-.switch input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
-
-.tools { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 14px; border-top: 1px solid var(--edge); }
-
-/* ══════════════════════════════════════════════════════════
-   إشعار
-   ══════════════════════════════════════════════════════════ */
-
-.toast {
-  position: fixed;
-  bottom: 20px;
-  inset-inline-start: 50%;
-  transform: translateX(50%);
-  z-index: 60;
-  padding: 11px 20px;
-  border-radius: var(--r-2);
-  background: var(--paper);
-  color: var(--graphite);
-  font-size: 13.5px;
-  font-weight: 500;
-  box-shadow: 0 18px 40px -20px #000;
-  animation: rise .18s ease both;
-}
-.toast[hidden] { display: none; }
-
-/* ══════════════════════════════════════════════════════════
-   الشاشات الصغيرة
-   ══════════════════════════════════════════════════════════ */
-
-@media (max-width: 900px) {
-  body { overflow: auto; }
-  .stage { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .console {
-    order: -1;
-    border-inline-start: 0;
-    border-bottom: 1px solid var(--edge);
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شاشة اللاعبين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@700;800&family=Readex+Pro:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="overlay.css">
+<style>
+  .screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+  body[data-align="center"] .screen { justify-content: center; }
+  body[data-align="end"]    .screen { justify-content: flex-end; }
+
+  /* ═══ شريط العدّاد ═══ */
+
+  .bar { display: flex; align-items: center; gap: 9px; flex: none; }
+  body.no-bar .bar { display: none; }
+
+  .pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 15px 8px;
+    border-radius: 6px;
+    background: var(--paper);
+    filter: drop-shadow(var(--lift));
+    font-size: calc(var(--size) * .58);
+    font-weight: 600;
+  }
+  .pill b { font-family: var(--display); font-size: calc(var(--size) * .92); font-weight: 800; }
+  .pill__label { color: var(--graphite-2); font-size: calc(var(--size) * .42); }
+
+  .pill--timer { margin-inline-start: auto; background: var(--gold); }
+  .pill--timer.is-urgent { background: var(--signal); color: var(--paper); }
+  .pill--timer.is-urgent .pill__label { color: rgba(244, 238, 226, .8); }
+  .pill--timer[hidden] { display: none; }
+
+  /* ═══ اللاعبون ═══ */
+
+  .roster {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: repeat(var(--cols, auto-fill), minmax(var(--chip-min, 230px), 1fr));
+    grid-auto-rows: min-content;
+    align-content: start;
+    gap: 8px;
+    transition: opacity .35s ease;
+  }
+  body[data-layout="list"] .roster { grid-template-columns: 1fr; }
+  body.is-revealing .roster { opacity: .22; }
+
+  .chip {
+    position: relative;
+    display: flex;
     align-items: center;
-    gap: 14px 18px;
-    padding: 16px 18px;
+    gap: 10px;
+    padding: 8px 14px 9px 24px;
+    border-radius: 5px;
+    background: var(--paper);
+    filter: drop-shadow(var(--lift));
+    font-size: var(--size);
+    font-weight: 600;
+    line-height: 1.2;
+    animation: pop-in .28s cubic-bezier(.2, 1, .3, 1.3) both;
   }
-  .tally__num { font-size: 54px; }
-  .tally__foot { flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 6px; }
-  .tally__bar { display: none; }
-  .launch { margin-top: 0; }
-  .countdown { grid-column: 1 / -1; margin-top: 0; }
-  .board { padding: 16px; }
-  .winner__card { padding: 22px 22px 24px 34px; }
-  .winner__stamp { font-size: 20px; top: 12px; inset-inline-end: 16px; }
-}
-
-@media (max-width: 620px) {
-  .topbar { height: auto; padding: 10px 12px; grid-template-columns: 1fr; justify-items: center; gap: 9px; }
-  .topbar__side--end { justify-content: center; }
-  .account__pill { max-width: 90vw; }
-  .board__grid { grid-template-columns: 1fr; }
-  .console { grid-template-columns: 1fr; }
-  .launch-btn__label { font-size: 28px; }
-  .modal__body { grid-template-columns: 1fr; }
-  .winner__id { flex-direction: column; align-items: flex-start; }
-  .winner__avatar { width: 68px; height: 68px; font-size: 30px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
+  .chip__no {
+    position: absolute;
+    inset-inline-start: 7px;
+    top: 50%;
+    transform: translateY(-50%) rotate(180deg);
+    writing-mode: vertical-rl;
+    font-family: var(--mono);
+    font-size: calc(var(--size) * .38);
+    font-weight: 700;
+    letter-spacing: .14em;
+    color: var(--graphite-2);
   }
-  .winner__shreds { display: none; }
+  .chip .face {
+    width: calc(var(--size) * 1.45);
+    height: calc(var(--size) * 1.45);
+    font-size: calc(var(--size) * .68);
+  }
+  .chip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .chip.is-new { animation: pop-in .28s cubic-bezier(.2, 1, .3, 1.3) both, flash .9s ease 1; }
+  @keyframes flash {
+    0%, 100% { background: var(--paper); }
+    35%      { background: var(--gold); }
+  }
+
+  .chip.is-spot {
+    z-index: 2;
+    background: var(--gold);
+    box-shadow: inset 0 0 0 4px var(--signal);
+    transform: scale(1.05);
+  }
+
+  .chip--more {
+    justify-content: center;
+    background: var(--paper-2);
+    color: var(--graphite-2);
+    font-size: calc(var(--size) * .7);
+  }
+
+  .empty {
+    justify-self: start;
+    grid-column: 1 / -1;
+    padding: 12px 22px 14px;
+    border-radius: 6px;
+    background: var(--paper);
+    filter: drop-shadow(var(--lift));
+    font-size: calc(var(--size) * .72);
+    font-weight: 600;
+    color: var(--graphite-2);
+  }
+
+  /* ═══ إعلان الفائز ═══ */
+
+  .reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    display: none;
+    place-items: center;
+    padding: 26px;
+    pointer-events: none;
+  }
+  body.is-revealing .reveal { display: grid; }
+
+  .card {
+    position: relative;
+    max-width: 94vw;
+    padding: 26px 40px 30px calc(var(--notch-inset) + 30px);
+    text-align: start;
+    animation: card-in .5s cubic-bezier(.15, 1.25, .35, 1) both;
+  }
+  .card__eyebrow {
+    margin: 0 0 4px;
+    font-size: calc(var(--size) * .48);
+    font-weight: 600;
+    letter-spacing: .2em;
+    color: var(--graphite-2);
+  }
+  .card__row { display: flex; align-items: center; gap: 22px; }
+  .card .face {
+    width: calc(var(--size) * 4);
+    height: calc(var(--size) * 4);
+    border-radius: 8px;
+    font-size: calc(var(--size) * 1.9);
+  }
+  .card__name {
+    margin: 0;
+    font-family: var(--display);
+    font-size: calc(var(--size) * 3);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -.015em;
+    word-break: break-word;
+  }
+  .card__meta {
+    margin: 5px 0 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: calc(var(--size) * .62);
+    color: var(--graphite-2);
+  }
+  .card__no { direction: ltr; }
+  .card__handle { direction: ltr; }
+
+  .card__stamp {
+    top: 12px;
+    inset-inline-end: 20px;
+    font-size: calc(var(--size) * 1);
+    animation: stamp-in .5s cubic-bezier(.2, 1.4, .3, 1) .34s both;
+  }
+
+  @keyframes card-in {
+    0%   { opacity: 0; transform: scale(.62) rotate(-3deg); }
+    100% { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="screen">
+  <div class="bar">
+    <span class="pill"><span class="pill__label">المشاركون</span><b id="count">٠</b></span>
+    <span class="pill pill--timer" id="timer" hidden><span class="pill__label">يبدأ بعد</span><b id="timer-num">٠</b></span>
+  </div>
+
+  <div class="roster" id="roster"></div>
+</div>
+
+<div class="reveal" id="reveal">
+  <div class="ticket-wrap">
+    <div class="card ticket">
+      <span class="ticket__perf" aria-hidden="true"></span>
+      <span class="stamp card__stamp">فائز</span>
+      <p class="card__eyebrow">التذكرة الرابحة</p>
+      <div class="card__row">
+        <div class="face" id="w-face"></div>
+        <div>
+          <h1 class="card__name" id="w-name">—</h1>
+          <p class="card__meta">
+            <span class="card__no" id="w-no"></span>
+            <span class="card__handle" id="w-handle"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="shreds" id="shreds" aria-hidden="true"></div>
+<button class="audio-note" id="audio-note" hidden>فعّل الصوت</button>
+
+<div class="panel">
+  <div class="panel__row">
+    <span class="panel__label">الخلفية</span>
+    <button class="swatch swatch--clear" data-bg-option="transparent" title="بدون خلفية"></button>
+    <button class="swatch" data-bg-option="green" style="background:#00ff00" title="أخضر"></button>
+    <button class="swatch" data-bg-option="blue" style="background:#0000ff" title="أزرق"></button>
+    <button class="swatch" data-bg-option="magenta" style="background:#ff00ff" title="بنفسجي"></button>
+    <button class="swatch" data-bg-option="dark" style="background:#0B1E24" title="لوح داكن"></button>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">الحجم</span>
+    <input type="range" id="p-size" min="14" max="64" step="2">
+    <span class="panel__hint" id="p-size-view">26</span>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">الشكل</span>
+    <button data-layout="grid">شبكة</button>
+    <button data-layout="list">عمود</button>
+    <button data-cols="auto">تلقائي</button>
+    <button data-cols="2">٢</button>
+    <button data-cols="3">٣</button>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">المكان</span>
+    <button data-align="start">أعلى</button>
+    <button data-align="center">وسط</button>
+    <button data-align="end">أسفل</button>
+    <span class="panel__label">أقصى عدد</span>
+    <input type="range" id="p-max" min="0" max="40" step="1">
+    <span class="panel__hint" id="p-max-view">الكل</span>
+  </div>
+
+  <div class="panel__row">
+    <button id="p-faces">الصور</button>
+    <button id="p-bar">العدّاد</button>
+    <button id="p-sound">الصوت</button>
+    <button id="p-test">تجربة الفوز</button>
+  </div>
+
+  <p class="panel__hint">?bg=transparent&size=30&layout=list&align=end&max=8&faces=0&bar=0&sound=0</p>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="overlay.js"></script>
+<script>
+'use strict';
+
+const prefs = Overlay.load('players', {
+  bg: 'transparent',
+  size: 26,
+  layout: 'grid',
+  cols: 'auto',
+  align: 'start',
+  max: 0,
+  faces: true,
+  bar: true,
+  sound: true,
+});
+
+const rosterEl = document.getElementById('roster');
+const countEl = document.getElementById('count');
+const timerEl = document.getElementById('timer');
+const timerNum = document.getElementById('timer-num');
+const shredsEl = document.getElementById('shreds');
+
+let participants = [];
+let pending = null;
+let drawing = false;
+
+/* ═══ تطبيق الإعدادات ═══ */
+
+function applyLayout(value) {
+  document.body.dataset.layout = value;
+  document.querySelectorAll('[data-layout]').forEach((b) => b.classList.toggle('is-on', b.dataset.layout === value));
 }
 
-.recent__item--empty { color: var(--mute-2); font-size: 12.5px; border-bottom: 0; }
-
-/* ═══ زر السحب الفوري ═══ */
-
-.launch-now {
-  width: 100%;
-  margin-top: 9px;
-  padding: 10px 14px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-2);
-  background: transparent;
-  color: var(--mute);
-  font-size: 13px;
-  font-weight: 500;
-  transition: border-color .15s, color .15s;
+function applyCols(value) {
+  document.documentElement.style.setProperty('--cols', value === 'auto' ? 'auto-fill' : value);
+  document.querySelectorAll('[data-cols]').forEach((b) => b.classList.toggle('is-on', b.dataset.cols === String(value)));
 }
-.launch-now:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
-.launch-now:disabled { opacity: .35; }
 
-/* ═══ روابط شاشات الكروما ═══ */
-
-.screens { padding: 12px 16px; border-bottom: 1px solid var(--edge); }
-.screens__label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: .12em;
-  color: var(--mute-2);
+function applyAlign(value) {
+  document.body.dataset.align = value;
+  document.querySelectorAll('[data-align]').forEach((b) => b.classList.toggle('is-on', b.dataset.align === value));
 }
-.screens__links { display: flex; flex-wrap: wrap; gap: 7px; }
+
+function applyMax(value) {
+  document.getElementById('p-max-view').textContent = value > 0 ? Overlay.arabicNumber(value) : 'الكل';
+  document.getElementById('p-max').value = value;
+}
+
+Overlay.applyBackground(prefs.bg);
+Overlay.applySize(prefs.size);
+applyLayout(prefs.layout);
+applyCols(prefs.cols);
+applyAlign(prefs.align);
+applyMax(prefs.max);
+document.body.classList.toggle('no-faces', !prefs.faces);
+document.body.classList.toggle('no-bar', !prefs.bar);
+Overlay.setMuted(!prefs.sound);
+Overlay.bindAudioNote(document.getElementById('audio-note'));
+Overlay.watchPanel();
+
+document.getElementById('p-size').value = prefs.size;
+document.getElementById('p-size-view').textContent = prefs.size;
+Overlay.toggleButton(document.getElementById('p-faces'), prefs.faces, 'الصور', 'بدون صور');
+Overlay.toggleButton(document.getElementById('p-bar'), prefs.bar, 'العدّاد', 'بدون عدّاد');
+Overlay.toggleButton(document.getElementById('p-sound'), prefs.sound, 'الصوت', 'صامت');
+
+/* ═══ القائمة ═══ */
+
+function chipNode(p, isNew) {
+  const node = document.createElement('div');
+  node.className = isNew ? 'chip is-new' : 'chip';
+  node.dataset.id = p.id;
+  node.innerHTML = '<span class="chip__no"></span><span class="face"></span><span class="chip__name"></span>';
+  node.querySelector('.chip__no').textContent = String(p.order).padStart(3, '0');
+  node.querySelector('.chip__name').textContent = p.name;
+  Overlay.face(node.querySelector('.face'), p);
+  return node;
+}
+
+function visibleSlice() {
+  const max = Overlay.get('max');
+  if (!max || participants.length <= max) return { list: participants, hidden: 0 };
+  return { list: participants.slice(-max), hidden: participants.length - max };
+}
+
+function renderRoster() {
+  countEl.textContent = Overlay.arabicNumber(participants.length);
+  rosterEl.replaceChildren();
+
+  if (participants.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'بانتظار المشاركين…';
+    rosterEl.appendChild(empty);
+    return;
+  }
+
+  const { list, hidden } = visibleSlice();
+  if (hidden > 0) {
+    const more = document.createElement('div');
+    more.className = 'chip chip--more';
+    more.textContent = `و${Overlay.arabicNumber(hidden)} آخرين`;
+    rosterEl.appendChild(more);
+  }
+  list.forEach((p) => rosterEl.appendChild(chipNode(p)));
+}
+
+function addParticipant(p) {
+  if (participants.some((x) => x.id === p.id)) return;
+  participants.push(p);
+  countEl.textContent = Overlay.arabicNumber(participants.length);
+
+  const max = Overlay.get('max');
+  if (participants.length === 1 || (max && participants.length > max)) {
+    renderRoster();
+    const last = rosterEl.lastElementChild;
+    if (last) last.classList.add('is-new');
+  } else {
+    rosterEl.appendChild(chipNode(p, true));
+  }
+  rosterEl.scrollTo({ top: rosterEl.scrollHeight, behavior: 'smooth' });
+  Overlay.blip();
+}
+
+/* ═══ السحب ═══ */
+
+function runDraw(winner) {
+  drawing = true;
+  const nodes = [...rosterEl.querySelectorAll('.chip:not(.chip--more)')];
+  const target = nodes.find((n) => n.dataset.id === winner.id);
+
+  if (nodes.length < 2 || !target) {
+    reveal(winner);
+    return;
+  }
+
+  const steps = Math.max(20, Math.min(nodes.length * 2, 36));
+  const start = Math.floor(Math.random() * nodes.length);
+  let step = 0;
+
+  const hop = () => {
+    nodes.forEach((n) => n.classList.remove('is-spot'));
+    const node = (steps - step) <= 1 ? target : nodes[(start + step) % nodes.length];
+    node.classList.add('is-spot');
+    node.scrollIntoView({ block: 'nearest' });
+    Overlay.tick();
+    step += 1;
+
+    if (step > steps) {
+      setTimeout(() => {
+        nodes.forEach((n) => n.classList.remove('is-spot'));
+        reveal(winner);
+      }, 430);
+      return;
+    }
+    const progress = step / steps;
+    setTimeout(hop, 55 + progress * progress * 330);
+  };
+
+  hop();
+}
+
+function reveal(winner) {
+  drawing = false;
+  document.getElementById('w-name').textContent = winner.name;
+  document.getElementById('w-handle').textContent = winner.handle ? `@${winner.handle}` : '';
+  document.getElementById('w-no').textContent = winner.order ? `#${String(winner.order).padStart(3, '0')}` : '';
+  Overlay.face(document.getElementById('w-face'), winner);
+
+  document.body.classList.add('is-revealing');
+  Overlay.victory();
+  Overlay.shreds(shredsEl);
+
+  if (pending) {
+    participants = pending;
+    pending = null;
+    setTimeout(renderRoster, 700);
+  }
+}
+
+function backToRoster() {
+  document.body.classList.remove('is-revealing');
+  shredsEl.replaceChildren();
+}
+
+function paintTimer(round) {
+  timerEl.hidden = false;
+  timerNum.textContent = Overlay.arabicNumber(Math.max(round.remaining, 0));
+  timerEl.classList.toggle('is-urgent', round.remaining <= 5);
+  if (round.remaining <= 5 && round.remaining > 0) Overlay.urgent();
+}
+
+/* ═══ الاتصال ═══ */
+
+const socket = io();
+
+socket.on('state', (s) => {
+  participants = s.participants || [];
+  renderRoster();
+
+  if (s.round && s.round.active) paintTimer(s.round); else timerEl.hidden = true;
+
+  if (s.winner) {
+    document.getElementById('w-name').textContent = s.winner.name;
+    document.getElementById('w-handle').textContent = s.winner.handle ? `@${s.winner.handle}` : '';
+    document.getElementById('w-no').textContent = s.winner.order ? `#${String(s.winner.order).padStart(3, '0')}` : '';
+    Overlay.face(document.getElementById('w-face'), s.winner);
+    document.body.classList.add('is-revealing');
+  } else {
+    backToRoster();
+  }
+});
+
+socket.on('participant:add', (p) => { if (!drawing) addParticipant(p); });
+socket.on('participants:clear', () => { participants = []; renderRoster(); });
+
+socket.on('round:start', paintTimer);
+socket.on('round:tick', paintTimer);
+socket.on('round:end', () => { timerEl.hidden = true; });
+
+socket.on('winner', ({ winner, participants: list }) => {
+  pending = list;
+  runDraw(winner);
+});
+socket.on('winner:clear', backToRoster);
+
+/* ═══ اللوحة ═══ */
+
+document.querySelectorAll('[data-bg-option]').forEach((button) => {
+  button.addEventListener('click', () => Overlay.set('bg', Overlay.applyBackground(button.dataset.bgOption)));
+});
+
+document.querySelectorAll('[data-layout]').forEach((button) => {
+  button.addEventListener('click', () => { applyLayout(button.dataset.layout); Overlay.set('layout', button.dataset.layout); });
+});
+
+document.querySelectorAll('[data-cols]').forEach((button) => {
+  button.addEventListener('click', () => { applyCols(button.dataset.cols); Overlay.set('cols', button.dataset.cols); });
+});
+
+document.querySelectorAll('[data-align]').forEach((button) => {
+  button.addEventListener('click', () => { applyAlign(button.dataset.align); Overlay.set('align', button.dataset.align); });
+});
+
+document.getElementById('p-size').addEventListener('input', (e) => {
+  const value = Number(e.target.value);
+  Overlay.applySize(value);
+  Overlay.set('size', value);
+  document.getElementById('p-size-view').textContent = value;
+});
+
+document.getElementById('p-max').addEventListener('input', (e) => {
+  const value = Number(e.target.value);
+  Overlay.set('max', value);
+  applyMax(value);
+  renderRoster();
+});
+
+document.getElementById('p-faces').addEventListener('click', (e) => {
+  const on = !Overlay.get('faces');
+  Overlay.set('faces', on);
+  document.body.classList.toggle('no-faces', !on);
+  Overlay.toggleButton(e.currentTarget, on, 'الصور', 'بدون صور');
+});
+
+document.getElementById('p-bar').addEventListener('click', (e) => {
+  const on = !Overlay.get('bar');
+  Overlay.set('bar', on);
+  document.body.classList.toggle('no-bar', !on);
+  Overlay.toggleButton(e.currentTarget, on, 'العدّاد', 'بدون عدّاد');
+});
+
+document.getElementById('p-sound').addEventListener('click', (e) => {
+  const on = !Overlay.get('sound');
+  Overlay.set('sound', on);
+  Overlay.setMuted(!on);
+  Overlay.toggleButton(e.currentTarget, on, 'الصوت', 'صامت');
+  if (on) Overlay.tone(880, 0, 0.1);
+});
+
+document.getElementById('p-test').addEventListener('click', () => {
+  Overlay.context();
+  Overlay.victory();
+  Overlay.shreds(shredsEl);
+});
+</script>
+</body>
+</html>
