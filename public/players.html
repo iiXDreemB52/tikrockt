@@ -1,283 +1,641 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>شاشة اللاعبين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@700;800&family=Readex+Pro:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="overlay.css">
+<style>
+  .screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+  body[data-align="center"] .screen { justify-content: center; }
+  body[data-align="end"]    .screen { justify-content: flex-end; }
+
+  /* ═══ شريط العدّاد ═══ */
+
+  .bar { display: flex; align-items: center; gap: 9px; flex: none; }
+  body.no-bar .bar { display: none; }
+
+  /* ═══ تلميح كلمة الدخول ═══ */
+
+  .stream-hint {
+    align-self: flex-start;
+    display: inline-block;
+    margin: 0;
+    padding: 9px 18px 10px;
+    border-radius: 8px;
+    background: var(--paper);
+    box-shadow: var(--lift);
+    font-size: calc(var(--size) * .68);
+    font-weight: 700;
+    color: var(--graphite);
+  }
+  .stream-hint b {
+    display: inline-block;
+    margin: 0 3px;
+    vertical-align: middle;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: calc(var(--size) * 1.7);
+    line-height: 1;
+    color: var(--signal);
+  }
+  body.no-hint .stream-hint { display: none; }
+
+  .pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 15px 8px;
+    border-radius: 6px;
+    background: var(--paper);
+    box-shadow: var(--lift);
+    font-size: calc(var(--size) * .58);
+    font-weight: 600;
+  }
+  .pill b { font-family: var(--display); font-size: calc(var(--size) * .92); font-weight: 800; }
+  .pill__label { color: var(--graphite-2); font-size: calc(var(--size) * .58); font-weight: 700; }
+
+  .pill--timer { margin-inline-start: auto; background: var(--gold); }
+  .pill--timer.is-urgent { background: var(--signal); color: var(--paper); }
+  .pill--timer.is-urgent .pill__label { color: rgba(244, 238, 226, .8); }
+  .pill--timer[hidden] { display: none; }
+
+  /* ═══ اللاعبون ═══ */
+
+  .roster {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(var(--cols, auto-fill), minmax(var(--chip-min, 230px), 1fr));
+    grid-auto-rows: min-content;
+    align-content: start;
+    gap: 8px;
+    transition: opacity .35s ease;
+    contain: layout paint;
+  }
+  .roster.no-anim .chip { animation: none; }
+  body[data-layout="list"] .roster { grid-template-columns: 1fr; }
+  body.is-revealing .roster { opacity: .22; }
+
+  .chip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 9px 24px;
+    border-radius: 5px;
+    background: var(--paper);
+    box-shadow: var(--lift);
+    font-size: var(--size);
+    font-weight: 600;
+    line-height: 1.2;
+    animation: pop-in .28s cubic-bezier(.2, 1, .3, 1.3) both;
+  }
+  .chip__no {
+    position: absolute;
+    inset-inline-start: 7px;
+    top: 50%;
+    transform: translateY(-50%) rotate(180deg);
+    writing-mode: vertical-rl;
+    font-family: var(--mono);
+    font-size: calc(var(--size) * .38);
+    font-weight: 700;
+    letter-spacing: .14em;
+    color: var(--graphite-2);
+  }
+  .chip .face {
+    width: calc(var(--size) * 1.45);
+    height: calc(var(--size) * 1.45);
+    font-size: calc(var(--size) * .68);
+  }
+  .chip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .chip.is-new { animation: pop-in .28s cubic-bezier(.2, 1, .3, 1.3) both, flash .9s ease 1; }
+  @keyframes flash {
+    0%, 100% { background: var(--paper); }
+    35%      { background: var(--gold); }
+  }
+
+  .chip.is-spot {
+    z-index: 2;
+    background: var(--gold);
+    box-shadow: inset 0 0 0 4px var(--signal);
+    transform: scale(1.05);
+  }
+
+  .chip--more {
+    justify-content: center;
+    background: var(--paper-2);
+    color: var(--graphite-2);
+    font-size: calc(var(--size) * .7);
+  }
+
+  .empty {
+    justify-self: start;
+    grid-column: 1 / -1;
+    padding: 12px 22px 14px;
+    border-radius: 6px;
+    background: var(--paper);
+    box-shadow: var(--lift);
+    font-size: calc(var(--size) * .72);
+    font-weight: 600;
+    color: var(--graphite-2);
+  }
+
+  /* ═══ إعلان الفائز ═══ */
+
+  .reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    display: none;
+    align-items: center;
+    justify-items: center;
+    padding: 26px;
+    pointer-events: none;
+  }
+  body.is-revealing .reveal { display: grid; }
+
+  /* مكان بطاقة الفائز — يُضبط من لوحة التحكم (V) */
+  body[data-winner-v="top"]    .reveal { align-items: start; }
+  body[data-winner-v="bottom"] .reveal { align-items: end; }
+  body[data-winner-h="start"]  .reveal { justify-items: start; }
+  body[data-winner-h="end"]    .reveal { justify-items: end; }
+
+  .card {
+    position: relative;
+    max-width: 94vw;
+    padding: 26px 40px 30px calc(var(--notch-inset) + 30px);
+    text-align: start;
+    will-change: transform, opacity;
+    animation: card-in .5s cubic-bezier(.15, 1.25, .35, 1) both;
+  }
+  .card__eyebrow {
+    margin: 0 0 4px;
+    font-size: calc(var(--size) * .48);
+    font-weight: 600;
+    letter-spacing: .2em;
+    color: var(--graphite-2);
+  }
+  .card__row { display: flex; align-items: center; gap: 22px; }
+  .card .face {
+    width: calc(var(--size) * 4);
+    height: calc(var(--size) * 4);
+    border-radius: 8px;
+    font-size: calc(var(--size) * 1.9);
+  }
+  .card__name {
+    margin: 0;
+    font-family: var(--display);
+    font-size: calc(var(--size) * 3);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -.015em;
+    word-break: break-word;
+  }
+  .card__meta {
+    margin: 5px 0 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: calc(var(--size) * .62);
+    color: var(--graphite-2);
+  }
+  .card__no { direction: ltr; }
+  .card__handle { direction: ltr; }
+
+  .card__stamp {
+    top: 12px;
+    inset-inline-end: 20px;
+    font-size: calc(var(--size) * 1);
+    animation: stamp-in .5s cubic-bezier(.2, 1.4, .3, 1) .34s both;
+  }
+
+  @keyframes card-in {
+    0%   { opacity: 0; transform: translateY(-7%) scale(.62) rotate(-3deg); }
+    100% { opacity: 1; transform: translateY(-7%); }
+  }
+</style>
+</head>
+<body>
+
+<div class="screen">
+  <p class="stream-hint" id="stream-hint">اكتب <b id="hint-word">بلعب</b> في الشات للمشاركة</p>
+
+  <div class="bar">
+    <span class="pill"><span class="pill__label">المشاركون</span><b id="count">٠</b></span>
+    <span class="pill pill--timer" id="timer" hidden><span class="pill__label">يبدأ بعد</span><b id="timer-num">٠</b></span>
+  </div>
+
+  <div class="roster" id="roster"></div>
+</div>
+
+<div class="reveal" id="reveal">
+  <div class="ticket-wrap">
+    <div class="card ticket">
+      <span class="ticket__perf" aria-hidden="true"></span>
+      <span class="stamp card__stamp">فائز</span>
+      <p class="card__eyebrow">التذكرة الرابحة</p>
+      <div class="card__row">
+        <div class="face" id="w-face"></div>
+        <div>
+          <h1 class="card__name" id="w-name">—</h1>
+          <p class="card__meta">
+            <span class="card__no" id="w-no"></span>
+            <span class="card__handle" id="w-handle"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="shreds" id="shreds" aria-hidden="true"></div>
+<button class="audio-note" id="audio-note" hidden>فعّل الصوت</button>
+
+<div class="panel">
+  <div class="panel__row">
+    <span class="panel__label">الخلفية</span>
+    <button class="swatch swatch--clear" data-bg-option="transparent" title="بدون خلفية"></button>
+    <button class="swatch" data-bg-option="green" style="background:#00ff00" title="أخضر"></button>
+    <button class="swatch" data-bg-option="blue" style="background:#0000ff" title="أزرق"></button>
+    <button class="swatch" data-bg-option="magenta" style="background:#ff00ff" title="بنفسجي"></button>
+    <button class="swatch" data-bg-option="dark" style="background:#0B1E24" title="لوح داكن"></button>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">الحجم</span>
+    <input type="range" id="p-size" min="14" max="64" step="2">
+    <span class="panel__hint" id="p-size-view">26</span>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">الشكل</span>
+    <button data-layout="grid">شبكة</button>
+    <button data-layout="list">عمود</button>
+    <button data-cols="auto">تلقائي</button>
+    <button data-cols="2">٢</button>
+    <button data-cols="3">٣</button>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">المكان</span>
+    <button data-align="start">أعلى</button>
+    <button data-align="center">وسط</button>
+    <button data-align="end">أسفل</button>
+    <span class="panel__label">أقصى عدد</span>
+    <input type="range" id="p-max" min="0" max="100" step="1">
+    <span class="panel__hint" id="p-max-view">الكل</span>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">مكان الفائز</span>
+    <button data-winner-v="top">أعلى</button>
+    <button data-winner-v="center">وسط</button>
+    <button data-winner-v="bottom">أسفل</button>
+    <button data-winner-h="start">يمين</button>
+    <button data-winner-h="center">وسط</button>
+    <button data-winner-h="end">يسار</button>
+  </div>
+
+  <div class="panel__row">
+    <button id="p-faces">الصور</button>
+    <button id="p-bar">العدّاد</button>
+    <button id="p-hint">التلميح</button>
+    <button id="p-sound">الصوت</button>
+    <button id="p-test">تجربة الفوز</button>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__hint">V يفتح ويغلق هذه اللوحة</span>
+    <button data-panel-close style="margin-inline-start:auto">إغلاق</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="overlay.js"></script>
+<script>
 'use strict';
 
-/* ══════════════════════════════════════════════════════════
-   عُدّة مشتركة بين شاشات البث
-   الأولوية: قيم الرابط ← ثم الإعداد المحفوظ ← ثم الافتراضي
-   ══════════════════════════════════════════════════════════ */
+const socket = io({ query: { room: Overlay.room() } });
 
-const Overlay = (() => {
-  const params = new URLSearchParams(location.search);
+const rosterEl = document.getElementById('roster');
+const countEl = document.getElementById('count');
+const timerEl = document.getElementById('timer');
+const timerNum = document.getElementById('timer-num');
+const shredsEl = document.getElementById('shreds');
 
-  let screen = 'players';
-  let prefs = {};
-  let socket = null;
-  let onChange = () => {};
-  const locked = new Set();   // مفاتيح جاءت من الرابط — لا يغيّرها السيرفر
+let participants = [];
+let pending = null;
+let drawing = false;
+let drawSeq = 0; // يزيد مع كل سحب جديد؛ يلغي أي رسم متأخر من سحب سابق
 
-  /* ── الإعدادات: الرابط يتقدّم على إعداد الموقع ── */
+/* ═══ الإعدادات — تُضبط من الموقع أو من هذه اللوحة (زر V) ═══ */
 
-  function coerce(raw, fallback) {
-    if (typeof fallback === 'number') return Number(raw);
-    if (typeof fallback === 'boolean') return raw !== '0' && raw !== 'false';
-    return raw;
+const prefs = Overlay.init({
+  screen: 'players',
+  socket,
+  onChange: applyAll,
+  defaults: {
+    bg: 'transparent',
+    size: 26,
+    layout: 'grid',
+    cols: 'auto',
+    align: 'start',
+    winnerV: 'center',
+    winnerH: 'center',
+    max: 0,
+    faces: true,
+    bar: true,
+    hint: true,
+    sound: true,
+  },
+});
+
+function markGroup(selector, attribute, value) {
+  document.querySelectorAll(selector).forEach((button) => {
+    button.classList.toggle('is-on', button.dataset[attribute] === String(value));
+  });
+}
+
+function applyAll(current) {
+  Overlay.applyBackground(current.bg);
+  Overlay.applySize(current.size);
+
+  document.body.dataset.layout = current.layout;
+  document.body.dataset.align = current.align;
+  document.body.dataset.winnerV = current.winnerV;
+  document.body.dataset.winnerH = current.winnerH;
+  document.documentElement.style.setProperty('--cols', current.cols === 'auto' ? 'auto-fill' : current.cols);
+  document.body.classList.toggle('no-faces', !current.faces);
+  document.body.classList.toggle('no-bar', !current.bar);
+  document.body.classList.toggle('no-hint', !current.hint);
+  Overlay.setMuted(!current.sound);
+
+  markGroup('[data-layout]', 'layout', current.layout);
+  markGroup('[data-cols]', 'cols', current.cols);
+  markGroup('[data-align]', 'align', current.align);
+  markGroup('[data-winner-v]', 'winnerV', current.winnerV);
+  markGroup('[data-winner-h]', 'winnerH', current.winnerH);
+
+  const size = document.getElementById('p-size');
+  size.value = current.size;
+  document.getElementById('p-size-view').textContent = current.size;
+
+  document.getElementById('p-max').value = current.max;
+  document.getElementById('p-max-view').textContent = current.max > 0 ? Overlay.arabicNumber(current.max) : 'الكل';
+
+  Overlay.toggleButton(document.getElementById('p-faces'), current.faces, 'الصور', 'بدون صور');
+  Overlay.toggleButton(document.getElementById('p-bar'), current.bar, 'العدّاد', 'بدون عدّاد');
+  Overlay.toggleButton(document.getElementById('p-hint'), current.hint, 'التلميح', 'بدون تلميح');
+  Overlay.toggleButton(document.getElementById('p-sound'), current.sound, 'الصوت', 'صامت');
+
+  renderRoster();
+}
+
+Overlay.bindAudioNote(document.getElementById('audio-note'));
+Overlay.keyPanel();
+
+/* ═══ القائمة ═══ */
+
+function chipNode(p, isNew) {
+  const node = document.createElement('div');
+  node.className = isNew ? 'chip is-new' : 'chip';
+  node.dataset.id = p.id;
+  node.innerHTML = '<span class="chip__no"></span><span class="face"></span><span class="chip__name"></span>';
+  node.querySelector('.chip__no').textContent = String(p.order).padStart(3, '0');
+  node.querySelector('.chip__name').textContent = p.name;
+  Overlay.face(node.querySelector('.face'), p);
+  return node;
+}
+
+function visibleSlice() {
+  const max = Overlay.get('max');
+  if (!max || participants.length <= max) return { list: participants, hidden: 0 };
+  return { list: participants.slice(-max), hidden: participants.length - max };
+}
+
+function renderRoster() {
+  countEl.textContent = Overlay.arabicNumber(participants.length);
+  rosterEl.replaceChildren();
+
+  if (participants.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'بانتظار المشاركين…';
+    rosterEl.appendChild(empty);
+    return;
   }
 
-  function init(options) {
-    screen = options.screen;
-    prefs = { ...options.defaults };
-    socket = options.socket || null;
-    onChange = options.onChange || (() => {});
+  const { list, hidden } = visibleSlice();
+  if (hidden > 0) {
+    const more = document.createElement('div');
+    more.className = 'chip chip--more';
+    more.textContent = `و${Overlay.arabicNumber(hidden)} آخرين`;
+    rosterEl.appendChild(more);
+  }
+  list.forEach((p) => rosterEl.appendChild(chipNode(p)));
+}
 
-    Object.keys(options.defaults).forEach((name) => {
-      if (!params.has(name)) return;
-      const value = coerce(params.get(name), options.defaults[name]);
-      if (value !== undefined && !Number.isNaN(value)) {
-        prefs[name] = value;
-        locked.add(name);
-      }
-    });
+function addParticipant(p) {
+  if (participants.some((x) => x.id === p.id)) return;
+  participants.push(p);
+  countEl.textContent = Overlay.arabicNumber(participants.length);
 
-    if (socket) {
-      socket.on('overlay', (payload) => {
-        if (payload && payload.screen === screen) fromServer(payload.settings);
-      });
+  const max = Overlay.get('max');
+  if (participants.length === 1 || (max && participants.length > max)) {
+    renderRoster();
+    const last = rosterEl.lastElementChild;
+    if (last) last.classList.add('is-new');
+  } else {
+    rosterEl.appendChild(chipNode(p, true));
+  }
+  rosterEl.scrollTo({ top: rosterEl.scrollHeight, behavior: 'smooth' });
+  Overlay.blip();
+}
+
+/* ═══ السحب ═══ */
+
+function runDraw(winner) {
+  drawing = true;
+  drawSeq += 1;
+  const seq = drawSeq; // بصمة هذا السحب بالذات
+
+  const nodes = [...rosterEl.querySelectorAll('.chip:not(.chip--more)')];
+  const target = nodes.find((n) => n.dataset.id === winner.id);
+
+  if (nodes.length < 2 || !target) {
+    reveal(winner, seq);
+    return;
+  }
+
+  const steps = Math.max(20, Math.min(nodes.length * 2, 36));
+  let step = 0;
+  let prevNode = null;
+  let prevIndex = -1;
+
+  const hop = () => {
+    // إذا صار سحب جديد أثناء تنفيذ هذا التسلسل، نوقفه فورًا حتى ما
+    // يرسم فائزًا قديمًا فوق نتيجة السحب الجديد
+    if (seq !== drawSeq) {
+      if (prevNode) prevNode.classList.remove('is-spot');
+      return;
     }
-    return prefs;
-  }
 
-  // إعدادات وصلت من الموقع
-  function fromServer(settings) {
-    if (!settings) return;
-    let touched = false;
-    Object.entries(settings).forEach(([key, value]) => {
-      if (locked.has(key) || !(key in prefs)) return;
-      if (prefs[key] === value) return;
-      prefs[key] = value;
-      touched = true;
-    });
-    if (touched) onChange(prefs);
-  }
-
-  function set(name, value) {
-    if (prefs[name] === value) return value;
-    prefs[name] = value;
-    onChange(prefs);
-    if (socket) socket.emit('overlay:set', { screen, patch: { [name]: value } });
-    return value;
-  }
-
-  function get(name) { return prefs[name]; }
-
-  // معرّف الغرفة يأتي من الرابط الذي ينسخه المستخدم من الموقع
-  function room() {
-    return String(params.get('room') || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32) || 'default';
-  }
-  function all() { return { ...prefs }; }
-  function isLocked(name) { return locked.has(name); }
-
-  /* ── الخلفية ── */
-
-  const BACKGROUNDS = ['transparent', 'green', 'blue', 'magenta', 'dark'];
-
-  function applyBackground(mode) {
-    const value = BACKGROUNDS.includes(mode) ? mode : 'transparent';
-    document.body.dataset.bg = value;
-    document.querySelectorAll('[data-bg-option]').forEach((button) => {
-      button.classList.toggle('is-on', button.dataset.bgOption === value);
-    });
-    return value;
-  }
-
-  function applySize(px) {
-    document.documentElement.style.setProperty('--size', `${px}px`);
-    return px;
-  }
-
-  /* ── الصوت ── */
-
-  let ctx = null;
-  let muted = false;
-  let noteEl = null;
-
-  function context() {
-    if (!ctx) {
-      try {
-        ctx = new (window.AudioContext || window.webkitAudioContext)();
-      } catch (_) { return null; }
-    }
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-      if (ctx.state === 'suspended' && noteEl) noteEl.hidden = false;
-    } else if (noteEl) {
-      noteEl.hidden = true;
-    }
-    return ctx;
-  }
-
-  function setMuted(value) { muted = Boolean(value); }
-  function isMuted() { return muted; }
-
-  function tone(freq, start, duration, type = 'triangle', gain = 0.16) {
-    if (muted) return;
-    const c = context();
-    if (!c) return;
-    const at = c.currentTime + start;
-    const osc = c.createOscillator();
-    const amp = c.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, at);
-    amp.gain.setValueAtTime(0.0001, at);
-    amp.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0002), at + 0.015);
-    amp.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-    osc.connect(amp).connect(c.destination);
-    osc.start(at);
-    osc.stop(at + duration + 0.05);
-  }
-
-  const noiseBufferCache = new Map();
-
-  function noiseBuffer(c, duration) {
-    const key = `${c.sampleRate}:${duration}`;
-    let buffer = noiseBufferCache.get(key);
-    if (buffer) return buffer;
-    const frames = Math.floor(c.sampleRate * duration);
-    buffer = c.createBuffer(1, frames, c.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < frames; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-    noiseBufferCache.set(key, buffer);
-    return buffer;
-  }
-
-  function noise(start, duration, gain = 0.12, freq = 2200) {
-    if (muted) return;
-    const c = context();
-    if (!c) return;
-    const src = c.createBufferSource();
-    src.buffer = noiseBuffer(c, duration);
-    const filter = c.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = freq;
-    filter.Q.value = 0.7;
-    const amp = c.createGain();
-    amp.gain.value = gain;
-    src.connect(filter).connect(amp).connect(c.destination);
-    src.start(c.currentTime + start);
-  }
-
-  const tick = () => tone(880, 0, 0.04, 'square', 0.05);
-  const blip = () => tone(660, 0, 0.07, 'triangle', 0.05);
-  const urgent = () => tone(1200, 0, 0.08, 'square', 0.07);
-
-  function victory() {
-    if (muted) return;
-    const c = context();
-    if (!c) return;
-
-    const boom = c.createOscillator();
-    const boomAmp = c.createGain();
-    boom.type = 'sine';
-    boom.frequency.setValueAtTime(150, c.currentTime);
-    boom.frequency.exponentialRampToValueAtTime(48, c.currentTime + 0.7);
-    boomAmp.gain.setValueAtTime(0.3, c.currentTime);
-    boomAmp.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.8);
-    boom.connect(boomAmp).connect(c.destination);
-    boom.start();
-    boom.stop(c.currentTime + 0.85);
-
-    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
-      tone(f, i * 0.1, 0.42, 'triangle', 0.2);
-      tone(f * 2, i * 0.1, 0.28, 'square', 0.05);
-    });
-    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f) => tone(f, 0.46, 1.5, 'triangle', 0.14));
-
-    noise(0.02, 0.35, 0.09, 3200);
-    noise(0.44, 1.5, 0.11, 2200);
-  }
-
-  function bindAudioNote(element) {
-    noteEl = element;
-    if (!noteEl) return;
-    noteEl.addEventListener('click', () => {
-      context();
-      noteEl.hidden = true;
-      tone(880, 0, 0.1);
-    });
-    document.addEventListener('pointerdown', () => { context(); }, { once: true });
-  }
-
-  /* ── القصاصات ── */
-
-  function shreds(container, count = 30) {
-    if (!container) return;
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const colors = ['#F4EEE2', '#FFC53D', '#C3301A', '#E7DDCA', '#CDBFA6'];
-    const pieces = document.createDocumentFragment();
-    for (let i = 0; i < count; i += 1) {
-      const bit = document.createElement('i');
-      bit.style.left = `${Math.random() * 100}%`;
-      bit.style.background = colors[i % colors.length];
-      bit.style.animationDuration = `${2.2 + Math.random() * 2}s`;
-      bit.style.animationDelay = `${Math.random() * 0.7}s`;
-      bit.style.height = `${12 + Math.random() * 16}px`;
-      bit.style.width = `${7 + Math.random() * 7}px`;
-      pieces.appendChild(bit);
-    }
-    container.replaceChildren(pieces);
-    setTimeout(() => container.replaceChildren(), 5400);
-  }
-
-  /* ── اللوحة: تُفتح وتُغلق بزر V ── */
-
-  function openPanel()  { document.body.classList.add('show-panel'); }
-  function closePanel() { document.body.classList.remove('show-panel'); }
-  function togglePanel(){ document.body.classList.toggle('show-panel'); }
-
-  function keyPanel() {
-    document.addEventListener('keydown', (event) => {
-      const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName);
-      // نستخدم code حتى يشتغل مع لوحة المفاتيح العربية أيضًا
-      if (event.code === 'KeyV' && !typing) { event.preventDefault(); togglePanel(); }
-      if (event.key === 'Escape') closePanel();
-    });
-
-    document.querySelectorAll('[data-panel-close]').forEach((button) => {
-      button.addEventListener('click', closePanel);
-    });
-  }
-
-  /* ── مساعدات ── */
-
-  const arabicNumber = (n) => Number(n).toLocaleString('ar-EG');
-
-  function initials(name) {
-    const clean = String(name || '').trim();
-    return clean ? [...clean][0] : '؟';
-  }
-
-  function face(node, person) {
-    node.replaceChildren();
-    if (person && person.avatar) {
-      const img = document.createElement('img');
-      img.src = person.avatar;
-      img.alt = '';
-      img.referrerPolicy = 'no-referrer';
-      img.addEventListener('error', () => { node.textContent = initials(person.name); });
-      node.appendChild(img);
+    let node;
+    if (steps - step <= 1) {
+      node = target;
     } else {
-      node.textContent = initials(person && person.name);
+      // اختيار موضع عشوائي فعلي في كل خطوة (بدل المشي المتسلسل على القائمة)
+      let idx;
+      do {
+        idx = Math.floor(Math.random() * nodes.length);
+      } while (nodes.length > 1 && idx === prevIndex);
+      node = nodes[idx];
+      prevIndex = idx;
     }
-  }
 
-  function toggleButton(button, isOn, onLabel, offLabel) {
-    button.classList.toggle('is-on', isOn);
-    if (onLabel) button.textContent = isOn ? onLabel : offLabel;
-  }
+    if (prevNode && prevNode !== node) prevNode.classList.remove('is-spot');
+    node.classList.add('is-spot');
+    prevNode = node;
+    Overlay.tick();
+    step += 1;
 
-  return {
-    init, get, set, all, isLocked, fromServer, room,
-    applyBackground, applySize, BACKGROUNDS,
-    tone, noise, tick, blip, urgent, victory, setMuted, isMuted, bindAudioNote, context,
-    shreds, keyPanel, openPanel, closePanel, togglePanel,
-    arabicNumber, initials, face, toggleButton,
+    if (step > steps) {
+      setTimeout(() => {
+        if (seq !== drawSeq) return;
+        if (prevNode) prevNode.classList.remove('is-spot');
+        reveal(winner, seq);
+      }, 430);
+      return;
+    }
+    const progress = step / steps;
+    setTimeout(hop, 55 + progress * progress * 330);
   };
-})();
+
+  hop();
+}
+
+function paintWinner(winner) {
+  document.getElementById('w-name').textContent = winner.name;
+  document.getElementById('w-handle').textContent = winner.handle ? `@${winner.handle}` : '';
+  document.getElementById('w-no').textContent = winner.order ? `#${String(winner.order).padStart(3, '0')}` : '';
+  Overlay.face(document.getElementById('w-face'), winner);
+}
+
+function reveal(winner, seq) {
+  if (seq !== undefined && seq !== drawSeq) return; // نتيجة سحب قديم لاغية
+  drawing = false;
+  paintWinner(winner);
+  document.body.classList.add('is-revealing');
+
+  // نؤجّل الصوت والكونفيتي حتى تاخذ بطاقة الفائز رسمتها الأولى، ونفرّق
+  // إنشاء قصاصات الورق (٣٠ عنصر DOM) على فريم مستقل عن الصوت — هذا يوزّع
+  // الحمل على أكثر من فريم بدل ما يتزاحم كله وقت ظهور الاسم فيصير تقطيع
+  requestAnimationFrame(() => {
+    Overlay.victory();
+    requestAnimationFrame(() => Overlay.shreds(shredsEl));
+  });
+
+  if (pending) {
+    participants = pending;
+    pending = null;
+    setTimeout(() => {
+      // إعادة رسم القائمة بعد إزالة الفائز ما تحتاج أنيميشن "دخول" على
+      // كل البطاقات المتبقية دفعة وحدة — تعطيلها مؤقتًا يوفّر حمل رندر كبير
+      rosterEl.classList.add('no-anim');
+      renderRoster();
+      requestAnimationFrame(() => requestAnimationFrame(() => rosterEl.classList.remove('no-anim')));
+    }, 700);
+  }
+}
+
+function backToRoster() {
+  drawSeq += 1; // يلغي أي رسم سحب لايزال قيد التنفيذ
+  document.body.classList.remove('is-revealing');
+  shredsEl.replaceChildren();
+}
+
+function paintTimer(round) {
+  timerEl.hidden = false;
+  timerNum.textContent = Overlay.arabicNumber(Math.max(round.remaining, 0));
+  timerEl.classList.toggle('is-urgent', round.remaining <= 5);
+  if (round.remaining <= 5 && round.remaining > 0) Overlay.urgent();
+}
+
+/* ═══ الاتصال ═══ */
+
+socket.on('state', (s) => {
+  if (s.config && s.config.overlay) Overlay.fromServer(s.config.overlay.players);
+  if (s.config && s.config.keyword) document.getElementById('hint-word').textContent = s.config.keyword;
+
+  participants = s.participants || [];
+  renderRoster();
+
+  if (s.round && s.round.active) paintTimer(s.round); else timerEl.hidden = true;
+
+  if (s.winner) {
+    paintWinner(s.winner);
+    document.body.classList.add('is-revealing');
+  } else {
+    backToRoster();
+  }
+});
+
+socket.on('participant:add', (p) => { if (!drawing) addParticipant(p); });
+socket.on('participants:clear', () => { participants = []; renderRoster(); });
+
+socket.on('settings', (config) => {
+  if (config && config.keyword) document.getElementById('hint-word').textContent = config.keyword;
+});
+
+socket.on('round:start', paintTimer);
+socket.on('round:tick', paintTimer);
+socket.on('round:end', () => { timerEl.hidden = true; });
+
+socket.on('winner', ({ winner, participants: list }) => {
+  pending = list;
+  runDraw(winner);
+});
+socket.on('winner:clear', backToRoster);
+
+/* ═══ أزرار اللوحة ═══ */
+
+document.querySelectorAll('[data-bg-option]').forEach((b) => b.addEventListener('click', () => Overlay.set('bg', b.dataset.bgOption)));
+document.querySelectorAll('[data-layout]').forEach((b) => b.addEventListener('click', () => Overlay.set('layout', b.dataset.layout)));
+document.querySelectorAll('[data-cols]').forEach((b) => b.addEventListener('click', () => Overlay.set('cols', b.dataset.cols)));
+document.querySelectorAll('[data-align]').forEach((b) => b.addEventListener('click', () => Overlay.set('align', b.dataset.align)));
+document.querySelectorAll('[data-winner-v]').forEach((b) => b.addEventListener('click', () => Overlay.set('winnerV', b.dataset.winnerV)));
+document.querySelectorAll('[data-winner-h]').forEach((b) => b.addEventListener('click', () => Overlay.set('winnerH', b.dataset.winnerH)));
+
+document.getElementById('p-size').addEventListener('input', (e) => Overlay.set('size', Number(e.target.value)));
+document.getElementById('p-max').addEventListener('input', (e) => Overlay.set('max', Number(e.target.value)));
+document.getElementById('p-faces').addEventListener('click', () => Overlay.set('faces', !Overlay.get('faces')));
+document.getElementById('p-bar').addEventListener('click', () => Overlay.set('bar', !Overlay.get('bar')));
+document.getElementById('p-hint').addEventListener('click', () => Overlay.set('hint', !Overlay.get('hint')));
+document.getElementById('p-sound').addEventListener('click', () => {
+  const on = !Overlay.get('sound');
+  Overlay.set('sound', on);
+  if (on) Overlay.tone(880, 0, 0.1);
+});
+document.getElementById('p-test').addEventListener('click', () => {
+  Overlay.context();
+  Overlay.victory();
+  requestAnimationFrame(() => Overlay.shreds(shredsEl));
+});
+
+applyAll(prefs);
+</script>
+</body>
+</html>
