@@ -498,8 +498,8 @@ $('settings-save').addEventListener('click', () => {
     excludeWinners: setFields.exclude.checked,
     sound: { enabled: setFields.sound.checked, volume: Number(setFields.volume.value) },
   });
-  $('settings-note').textContent = 'تم الحفظ';
-  setTimeout(() => { $('settings-note').textContent = ''; }, 2000);
+  closeSettings();
+  toast('تم حفظ الإعدادات');
 });
 
 setFields.volume.addEventListener('input', () => {
