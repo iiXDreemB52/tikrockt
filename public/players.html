@@ -85,7 +85,11 @@
   }
   .roster.no-anim .chip { animation: none; }
   body[data-layout="list"] .roster { grid-template-columns: 1fr; }
-  body.is-revealing .roster { opacity: .22; }
+
+  /* وقت ظهور بطاقة الفائز نخفي كل شيء ثاني بالخلفية —
+     قائمة المشاركين، شريط العدّاد، وتلميح المشاركة — حتى ما
+     يشتت الانتباه عن اسم الفائز */
+  body.is-revealing .screen { visibility: hidden; }
 
   .chip {
     position: relative;
@@ -226,6 +230,40 @@
     0%   { opacity: 0; transform: translateY(-7%) scale(.62) rotate(-3deg); }
     100% { opacity: 1; transform: translateY(-7%); }
   }
+
+  /* ═══ دردشة الفائز ═══ */
+
+  .winner-chat {
+    position: fixed;
+    inset-block-end: 26px;
+    inset-inline-start: 26px;
+    z-index: 6;
+    display: none;
+    flex-direction: column-reverse;
+    gap: 6px;
+    width: min(420px, 90vw);
+    max-height: 34vh;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to top, #000 78%, transparent 100%);
+    mask-image: linear-gradient(to top, #000 78%, transparent 100%);
+  }
+  body.is-revealing .winner-chat { display: flex; }
+  body.no-winner-chat .winner-chat { display: none; }
+
+  .wbubble {
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 7px 14px 8px;
+    border-radius: 5px;
+    border-inline-start: 4px solid var(--gold);
+    background: var(--paper);
+    filter: drop-shadow(var(--lift));
+    font-size: calc(var(--size) * .5);
+    font-weight: 500;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    animation: pop-in .24s cubic-bezier(.2, 1, .3, 1.3) both;
+  }
 </style>
 </head>
 <body>
@@ -260,6 +298,8 @@
     </div>
   </div>
 </div>
+
+<div class="winner-chat" id="winner-chat"></div>
 
 <div class="shreds" id="shreds" aria-hidden="true"></div>
 <button class="audio-note" id="audio-note" hidden>فعّل الصوت</button>
@@ -313,6 +353,7 @@
     <button id="p-faces">الصور</button>
     <button id="p-bar">العدّاد</button>
     <button id="p-hint">التلميح</button>
+    <button id="p-winnerchat">دردشة الفائز</button>
     <button id="p-sound">الصوت</button>
     <button id="p-test">تجربة الفوز</button>
   </div>
@@ -335,6 +376,7 @@ const countEl = document.getElementById('count');
 const timerEl = document.getElementById('timer');
 const timerNum = document.getElementById('timer-num');
 const shredsEl = document.getElementById('shreds');
+const winnerChatEl = document.getElementById('winner-chat');
 
 let participants = [];
 let pending = null;
@@ -359,6 +401,7 @@ const prefs = Overlay.init({
     faces: true,
     bar: true,
     hint: true,
+    winnerChat: true,
     sound: true,
   },
 });
@@ -381,6 +424,7 @@ function applyAll(current) {
   document.body.classList.toggle('no-faces', !current.faces);
   document.body.classList.toggle('no-bar', !current.bar);
   document.body.classList.toggle('no-hint', !current.hint);
+  document.body.classList.toggle('no-winner-chat', !current.winnerChat);
   Overlay.setMuted(!current.sound);
 
   markGroup('[data-layout]', 'layout', current.layout);
@@ -399,6 +443,7 @@ function applyAll(current) {
   Overlay.toggleButton(document.getElementById('p-faces'), current.faces, 'الصور', 'بدون صور');
   Overlay.toggleButton(document.getElementById('p-bar'), current.bar, 'العدّاد', 'بدون عدّاد');
   Overlay.toggleButton(document.getElementById('p-hint'), current.hint, 'التلميح', 'بدون تلميح');
+  Overlay.toggleButton(document.getElementById('p-winnerchat'), current.winnerChat, 'دردشة الفائز', 'بدون دردشة');
   Overlay.toggleButton(document.getElementById('p-sound'), current.sound, 'الصوت', 'صامت');
 
   renderRoster();
@@ -527,6 +572,20 @@ function runDraw(winner) {
   hop();
 }
 
+/* ═══ دردشة الفائز ═══ */
+
+function addWinnerBubble(message) {
+  const bubble = document.createElement('div');
+  bubble.className = 'wbubble';
+  bubble.textContent = message.text;
+  winnerChatEl.appendChild(bubble);
+  while (winnerChatEl.childElementCount > 40) winnerChatEl.firstElementChild.remove();
+}
+
+function resetWinnerChat() {
+  winnerChatEl.replaceChildren();
+}
+
 function paintWinner(winner) {
   document.getElementById('w-name').textContent = winner.name;
   document.getElementById('w-handle').textContent = winner.handle ? `@${winner.handle}` : '';
@@ -538,6 +597,7 @@ function reveal(winner, seq) {
   if (seq !== undefined && seq !== drawSeq) return; // نتيجة سحب قديم لاغية
   drawing = false;
   paintWinner(winner);
+  resetWinnerChat();
   document.body.classList.add('is-revealing');
 
   // نؤجّل الصوت والكونفيتي حتى تاخذ بطاقة الفائز رسمتها الأولى، ونفرّق
@@ -565,6 +625,7 @@ function backToRoster() {
   drawSeq += 1; // يلغي أي رسم سحب لايزال قيد التنفيذ
   document.body.classList.remove('is-revealing');
   shredsEl.replaceChildren();
+  resetWinnerChat();
 }
 
 function paintTimer(round) {
@@ -587,6 +648,8 @@ socket.on('state', (s) => {
 
   if (s.winner) {
     paintWinner(s.winner);
+    resetWinnerChat();
+    (s.winnerMessages || []).forEach(addWinnerBubble);
     document.body.classList.add('is-revealing');
   } else {
     backToRoster();
@@ -595,6 +658,7 @@ socket.on('state', (s) => {
 
 socket.on('participant:add', (p) => { if (!drawing) addParticipant(p); });
 socket.on('participants:clear', () => { participants = []; renderRoster(); });
+socket.on('winner:message', addWinnerBubble);
 
 socket.on('settings', (config) => {
   if (config && config.keyword) document.getElementById('hint-word').textContent = config.keyword;
@@ -624,6 +688,7 @@ document.getElementById('p-max').addEventListener('input', (e) => Overlay.set('m
 document.getElementById('p-faces').addEventListener('click', () => Overlay.set('faces', !Overlay.get('faces')));
 document.getElementById('p-bar').addEventListener('click', () => Overlay.set('bar', !Overlay.get('bar')));
 document.getElementById('p-hint').addEventListener('click', () => Overlay.set('hint', !Overlay.get('hint')));
+document.getElementById('p-winnerchat').addEventListener('click', () => Overlay.set('winnerChat', !Overlay.get('winnerChat')));
 document.getElementById('p-sound').addEventListener('click', () => {
   const on = !Overlay.get('sound');
   Overlay.set('sound', on);
