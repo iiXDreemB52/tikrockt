@@ -661,8 +661,13 @@ function backToList(room) {
 function clearParticipants(room) {
   room.participants.clear();
   room.fullNotified = false;
+  // نصفّر الاستبعاد أيضًا حتى تصير مسحة القائمة "تصفيرًا كاملًا" —
+  // فمن فاز أو شارك سابقًا يقدر يشارك من جديد حتى لو خيار استبعاد
+  // الفائزين السابقين مفعّل، بدل ما يبقى مستبعدًا بصمت.
+  room.excluded.clear();
+  room.removedWinners = [];
   io.to(room.id).emit('participants:clear');
-  pushEvent(room, 'system', 'تم مسح قائمة المشاركين.');
+  pushEvent(room, 'system', 'تم مسح قائمة المشاركين بالكامل — ومن فاز سابقًا صار يقدر يشارك من جديد.');
 }
 
 /* ─────────── عند إلغاء خيار الاستبعاد ─────────── */
