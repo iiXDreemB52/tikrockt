@@ -28,7 +28,8 @@ const DEFAULT_CONFIG = {
   excludeWinners: true,      // استبعاد من فاز سابقًا
   maxParticipants: 100,      // الحد الأقصى للمشاركين
   countdownSeconds: 30,      // مدة العد التنازلي
-  startMode: 'countdown',    // سلوك زر «ابدأ»: countdown أو instant
+  startMode: 'instant',      // سلوك زر «ابدأ»: instant (سحب فوري) أو countdown
+  startModePicked: false,    // هل اختار المستخدم الوضع بنفسه؟
   autoDraw: true,            // السحب تلقائيًا بعد العد
   joinDuringRoundOnly: false,
   stopWhenFull: true,
@@ -107,6 +108,7 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
     maxParticipants: num(input.maxParticipants, base.maxParticipants, 1, 5000),
     countdownSeconds: num(input.countdownSeconds, base.countdownSeconds, 0, 900),
     startMode: input.startMode === 'instant' || input.startMode === 'countdown' ? input.startMode : base.startMode,
+    startModePicked: input.startModePicked === true || base.startModePicked === true,
     autoDraw: typeof input.autoDraw === 'boolean' ? input.autoDraw : base.autoDraw,
     joinDuringRoundOnly:
       typeof input.joinDuringRoundOnly === 'boolean' ? input.joinDuringRoundOnly : base.joinDuringRoundOnly,
@@ -172,7 +174,12 @@ async function getRoom(rawId) {
     const room = createRoom(id);
 
     const saved = await store.loadConfig(id);
-    if (saved) room.config = sanitizeConfig(saved);
+    if (saved) {
+      // ترقية لمرة واحدة: من لم يختر وضع الزر بنفسه ينتقل للسحب الفوري
+      if (saved.startModePicked !== true) saved.startMode = 'instant';
+      room.config = sanitizeConfig(saved);
+      room.config.startModePicked = saved.startModePicked === true;
+    }
 
     const winners = await store.loadWinners(id, 50);
     room.history = winners;
@@ -537,12 +544,28 @@ function addParticipant(room, user, note = '') {
   return participant;
 }
 
+/* الفائز قد يصل معرّفه من تيك توك بصيغة مختلفة (uniqueId أو userId
+   أو اختلاف في حالة الأحرف)، فنقارن بالمعرّف واليوزر معًا */
+function isWinner(room, user) {
+  if (!room.winner || !user) return false;
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const wid = norm(room.winner.id);
+  const wha = norm(room.winner.handle);
+  const uid = norm(user.id);
+  const uha = norm(user.handle);
+  if (wid && uid && wid === uid) return true;
+  if (wha && uha && wha === uha) return true;
+  if (wid && uha && wid === uha) return true;
+  if (wha && uid && wha === uid) return true;
+  return false;
+}
+
 function onChat(room, event) {
   const user = readUser(event?.user);
   if (!user) return;
   const content = getChatText(event);
 
-  if (room.winner && room.winner.id === user.id) {
+  if (isWinner(room, user) && content) {
     const message = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: content,
@@ -551,6 +574,8 @@ function onChat(room, event) {
     room.winnerMessages.push(message);
     if (room.winnerMessages.length > 300) room.winnerMessages.shift();
     io.to(room.id).emit('winner:message', message);
+    // نسجّلها في سجل الأحداث أيضًا حتى يظهر أثرها حتى لو كانت الشاشة مغلقة
+    pushEvent(room, 'winner', `💬 ${room.winner.name}: ${content}`, { handle: room.winner.handle });
   }
 
   if (!isJoinMessage(room, content)) return;
@@ -760,6 +785,7 @@ io.on('connection', (socket) => {
       { ...room.config, ...payload, sound: { ...room.config.sound, ...(payload.sound || {}) } },
       room.config
     );
+    if (payload && (payload.startMode === 'instant' || payload.startMode === 'countdown')) next.startModePicked = true;
     const keywordChanged = next.keyword !== room.config.keyword;
     next.username = room.config.username;   // الحساب يتغيّر من زره الخاص فقط
     next.overlay = room.config.overlay;      // الشاشات لها قناتها الخاصة
