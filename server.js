@@ -39,6 +39,8 @@ const DEFAULT_CONFIG = {
     players: {
       bg: 'transparent', size: 26, layout: 'grid', cols: 'auto',
       align: 'start', max: 0, faces: true, bar: true, sound: true,
+      hint: true, winnerChat: true, msg: 130,
+      winnerV: 'center', winnerH: 'center',
     },
     events: {
       bg: 'transparent', size: 22, rows: 8, fade: 0,
@@ -55,7 +57,10 @@ const OVERLAY_RULES = {
     cols: ['auto', '1', '2', '3', '4', '5'],
     align: ['start', 'center', 'end'],
     max: [0, 200],
-    faces: 'bool', bar: 'bool', sound: 'bool',
+    msg: [60, 260],
+    winnerV: ['top', 'center', 'bottom'],
+    winnerH: ['start', 'center', 'end'],
+    faces: 'bool', bar: 'bool', sound: 'bool', hint: 'bool', winnerChat: 'bool',
   },
   events: {
     bg: ['transparent', 'green', 'blue', 'magenta', 'dark'],
