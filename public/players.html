@@ -9,6 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="overlay.css">
 <style>
+  /* مقياس مستقل لرسائل الفائز — يتحكم فيه شريط «حجم الرسائل» في لوحة الشاشة */
+  :root { --msg: 1; }
+
   .screen {
     height: 100%;
     display: flex;
@@ -255,7 +258,7 @@
     border-radius: 12px;
     background: var(--paper);
     box-shadow: var(--lift);
-    max-height: min(46vh, calc(var(--size) * 16));
+    max-height: min(52vh, calc(var(--size) * 18 * var(--msg)));
   }
   body.is-revealing .winner-chat { display: flex; }
   body.no-winner-chat .winner-chat { display: none !important; }
@@ -268,7 +271,7 @@
     gap: 10px;
     padding: calc(var(--size) * .3) calc(var(--size) * .55);
     border-bottom: 1.5px solid var(--paper-3);
-    font-size: calc(var(--size) * .56);
+    font-size: calc(var(--size) * .62 * var(--msg));
     font-weight: 800;
     color: var(--graphite-2);
   }
@@ -308,7 +311,7 @@
     flex: none;
     margin: 0;
     padding: 0 calc(var(--size) * .55) calc(var(--size) * .5);
-    font-size: calc(var(--size) * .5);
+    font-size: calc(var(--size) * .58 * var(--msg));
     font-weight: 700;
     color: var(--graphite-2);
   }
@@ -317,13 +320,13 @@
   .wbubble {
     align-self: flex-start;
     max-width: 92%;
-    padding: calc(var(--size) * .36) calc(var(--size) * .62) calc(var(--size) * .4);
+    padding: calc(var(--size) * .4 * var(--msg)) calc(var(--size) * .7 * var(--msg)) calc(var(--size) * .46 * var(--msg));
     border-radius: 12px;
     border: 1.5px solid var(--paper-3);
-    border-inline-start: 5px solid var(--gold);
+    border-inline-start: calc(var(--size) * .18 * var(--msg)) solid var(--gold);
     background: var(--paper-2);
     color: var(--graphite);
-    font-size: calc(var(--size) * .78);
+    font-size: calc(var(--size) * 1.05 * var(--msg));
     font-weight: 800;
     line-height: 1.45;
     overflow-wrap: anywhere;
@@ -392,6 +395,12 @@
     <span class="panel__label">الحجم</span>
     <input type="range" id="p-size" min="14" max="64" step="2">
     <span class="panel__hint" id="p-size-view">26</span>
+  </div>
+
+  <div class="panel__row">
+    <span class="panel__label">حجم الرسائل</span>
+    <input type="range" id="p-msg" min="60" max="260" step="10">
+    <span class="panel__hint" id="p-msg-view">١٠٠٪</span>
   </div>
 
   <div class="panel__row">
@@ -479,6 +488,7 @@ const prefs = Overlay.init({
     bar: true,
     hint: true,
     winnerChat: true,
+    msg: 130,
     sound: true,
   },
 });
@@ -513,6 +523,10 @@ function applyAll(current) {
   const size = document.getElementById('p-size');
   size.value = current.size;
   document.getElementById('p-size-view').textContent = current.size;
+
+  document.documentElement.style.setProperty('--msg', (current.msg || 100) / 100);
+  document.getElementById('p-msg').value = current.msg || 100;
+  document.getElementById('p-msg-view').textContent = `${Overlay.arabicNumber(current.msg || 100)}٪`;
 
   document.getElementById('p-max').value = current.max;
   document.getElementById('p-max-view').textContent = current.max > 0 ? Overlay.arabicNumber(current.max) : 'الكل';
@@ -764,6 +778,7 @@ document.querySelectorAll('[data-winner-v]').forEach((b) => b.addEventListener('
 document.querySelectorAll('[data-winner-h]').forEach((b) => b.addEventListener('click', () => Overlay.set('winnerH', b.dataset.winnerH)));
 
 document.getElementById('p-size').addEventListener('input', (e) => Overlay.set('size', Number(e.target.value)));
+document.getElementById('p-msg').addEventListener('input', (e) => Overlay.set('msg', Number(e.target.value)));
 document.getElementById('p-max').addEventListener('input', (e) => Overlay.set('max', Number(e.target.value)));
 document.getElementById('p-faces').addEventListener('click', () => Overlay.set('faces', !Overlay.get('faces')));
 document.getElementById('p-bar').addEventListener('click', () => Overlay.set('bar', !Overlay.get('bar')));
