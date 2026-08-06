@@ -435,13 +435,47 @@ function updateConn(status, statusDetail) {
 
 /* ═══════════ الحساب ═══════════ */
 
+/* آخر حساب ربطه صاحب هذه الغرفة — يُحفظ في المتصفح أيضًا حتى يرجع
+   تلقائيًا لو أُعيد تشغيل الخادم أو فُقدت إعدادات الغرفة */
+const ACCOUNT_KEY = `draw:account:${ROOM}`;
+let accountRestored = false;
+
+function rememberAccount(username) {
+  if (!username) return;
+  try { localStorage.setItem(ACCOUNT_KEY, username); } catch (_) { /* التخزين غير متاح */ }
+  document.cookie = `draw_account_${ROOM}=${encodeURIComponent(username)}; path=/; max-age=34560000; samesite=lax`;
+}
+
+function lastAccount() {
+  let saved = '';
+  try { saved = localStorage.getItem(ACCOUNT_KEY) || ''; } catch (_) { saved = ''; }
+  if (!saved) {
+    const hit = document.cookie.split('; ').find((c) => c.startsWith(`draw_account_${ROOM}=`));
+    if (hit) saved = decodeURIComponent(hit.split('=').slice(1).join('='));
+  }
+  return String(saved || '').trim().replace(/^@/, '').slice(0, 40);
+}
+
+/* يُنادى مع أول حالة تصل من الخادم: إن كانت الغرفة بلا حساب واستعدنا
+   حسابًا محفوظًا، نعيد ربطه تلقائيًا مرة واحدة فقط */
+function restoreAccount() {
+  if (accountRestored) return;
+  accountRestored = true;
+  if (config.username) { rememberAccount(config.username); return; }
+  const saved = lastAccount();
+  if (!saved) return;
+  socket.emit('account:set', { username: saved });
+  toast(`جارٍ إعادة الربط بآخر حساب: @${saved}`);
+}
+
 function paintAccount() {
   el.accountName.textContent = config.username ? `@${config.username}` : 'أضف حسابك';
   el.accountPill.classList.toggle('is-empty', !config.username);
+  if (config.username) rememberAccount(config.username);
 }
 
 function openAccountEditor() {
-  el.accountInput.value = config.username || '';
+  el.accountInput.value = config.username || lastAccount() || '';
   el.accountPill.classList.add('is-hidden');
   el.accountForm.classList.remove('is-hidden');
   el.accountInput.focus();
@@ -459,6 +493,7 @@ el.accountForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const username = el.accountInput.value.trim().replace(/^@/, '');
   if (!username) { toast('اكتب اسم الحساب أولًا'); return; }
+  rememberAccount(username);
   socket.emit('account:set', { username });
   closeAccountEditor();
   toast(`جارٍ الربط بـ @${username}…`);
@@ -723,6 +758,7 @@ function initializeSocket() {
 
   socket.on('state', (s) => {
     applyConfig(s.config || {});
+    restoreAccount();
     participants = s.participants || [];
     joinOpen = s.joinOpen !== false;
     renderAll();
