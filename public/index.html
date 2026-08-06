@@ -39,21 +39,10 @@
   </div>
 
   <div class="account">
-    <button class="account__pill" id="account-pill" title="اضغط لتغيير الحساب">
-      <span class="account__name" id="account-name">أضف حسابك</span>
-      <span class="account__edit">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M11.2 2.8a1.7 1.7 0 0 1 2.4 2.4L6 12.8 3 13.5l.7-3z"/>
-        </svg>
-        تغيير
-      </span>
-    </button>
-
-    <form class="account__form is-hidden" id="account-form" autocomplete="off">
+    <form class="account__bar" id="account-form" autocomplete="off">
+      <button class="account__connect" type="submit">ربط</button>
       <span class="account__at">@</span>
       <input class="account__input" id="account-input" type="text" placeholder="اسم حسابك في تيك توك" spellcheck="false">
-      <button class="account__save" type="submit">ربط</button>
-      <button class="account__cancel" type="button" id="account-cancel">إلغاء</button>
     </form>
   </div>
 
