@@ -408,6 +408,7 @@
     <button id="p-winnerchat">دردشة الفائز</button>
     <button id="p-sound">الصوت</button>
     <button id="p-test">تجربة الفوز</button>
+    <button id="p-test-msg">تجربة رسالة</button>
   </div>
 
   <div class="panel__row">
@@ -751,6 +752,15 @@ document.getElementById('p-sound').addEventListener('click', () => {
   Overlay.set('sound', on);
   if (on) Overlay.tone(880, 0, 0.1);
 });
+/* يثبت أن صندوق رسائل الفائز يعمل حتى قبل وصول رسالة حقيقية */
+document.getElementById('p-test-msg').addEventListener('click', () => {
+  if (!document.body.classList.contains('is-revealing')) {
+    document.body.classList.add('is-revealing');
+    setTimeout(() => { if (!document.querySelector('.wbubble')) document.body.classList.remove('is-revealing'); }, 6000);
+  }
+  addWinnerBubble({ text: 'رسالة تجريبية من الفائز ✅' });
+});
+
 document.getElementById('p-test').addEventListener('click', () => {
   Overlay.context();
   Overlay.victory();
