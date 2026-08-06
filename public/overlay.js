@@ -210,7 +210,7 @@ const Overlay = (() => {
   function shreds(container, count = 30) {
     if (!container) return;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const colors = ['#F4EEE2', '#FFC53D', '#C3301A', '#E7DDCA', '#CDBFA6'];
+    const colors = ['#F59E0B', '#FCD34D', '#EF4444', '#F5F5F5', '#B45309'];
     const pieces = document.createDocumentFragment();
     for (let i = 0; i < count; i += 1) {
       const bit = document.createElement('i');
