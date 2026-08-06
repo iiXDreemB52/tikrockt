@@ -28,6 +28,7 @@ const DEFAULT_CONFIG = {
   excludeWinners: true,      // استبعاد من فاز سابقًا
   maxParticipants: 100,      // الحد الأقصى للمشاركين
   countdownSeconds: 30,      // مدة العد التنازلي
+  winnersCount: 1,           // كم فائزًا يُسحب في المرة الواحدة
   startMode: 'instant',      // سلوك زر «ابدأ»: instant (سحب فوري) أو countdown
   startModePicked: false,    // هل اختار المستخدم الوضع بنفسه؟
   autoDraw: true,            // السحب تلقائيًا بعد العد
@@ -112,6 +113,7 @@ function sanitizeConfig(input = {}, base = DEFAULT_CONFIG) {
     excludeWinners: typeof input.excludeWinners === 'boolean' ? input.excludeWinners : base.excludeWinners,
     maxParticipants: num(input.maxParticipants, base.maxParticipants, 1, 5000),
     countdownSeconds: num(input.countdownSeconds, base.countdownSeconds, 0, 900),
+    winnersCount: num(input.winnersCount, base.winnersCount, 1, 50),
     startMode: input.startMode === 'instant' || input.startMode === 'countdown' ? input.startMode : base.startMode,
     startModePicked: input.startModePicked === true || base.startModePicked === true,
     autoDraw: typeof input.autoDraw === 'boolean' ? input.autoDraw : base.autoDraw,
@@ -152,7 +154,8 @@ function createRoom(id) {
     status: 'disconnected',
     statusDetail: 'غير متصل',
     participants: new Map(),
-    winner: null,
+    winner: null,          // أول فائز — للتوافق مع أي شاشة قديمة
+    winners: [],           // قائمة الفائزين في السحبة الحالية
     winnerMessages: [],
     history: [],
     excluded: new Set(),
@@ -303,6 +306,7 @@ function snapshot(room) {
     config: room.config,
     participants: [...room.participants.values()],
     winner: room.winner,
+    winners: room.winners,
     winnerMessages: room.winnerMessages,
     history: room.history,
     events: room.events.slice(-120),
@@ -551,18 +555,24 @@ function addParticipant(room, user, note = '') {
 
 /* الفائز قد يصل معرّفه من تيك توك بصيغة مختلفة (uniqueId أو userId
    أو اختلاف في حالة الأحرف)، فنقارن بالمعرّف واليوزر معًا */
-function isWinner(room, user) {
-  if (!room.winner || !user) return false;
+function matchesPerson(person, user) {
+  if (!person || !user) return false;
   const norm = (v) => String(v || '').trim().toLowerCase();
-  const wid = norm(room.winner.id);
-  const wha = norm(room.winner.handle);
+  const pid = norm(person.id);
+  const pha = norm(person.handle);
   const uid = norm(user.id);
   const uha = norm(user.handle);
-  if (wid && uid && wid === uid) return true;
-  if (wha && uha && wha === uha) return true;
-  if (wid && uha && wid === uha) return true;
-  if (wha && uid && wha === uid) return true;
+  if (pid && uid && pid === uid) return true;
+  if (pha && uha && pha === uha) return true;
+  if (pid && uha && pid === uha) return true;
+  if (pha && uid && pha === uid) return true;
   return false;
+}
+
+/* يرجع الفائز المطابق للمرسل (أو null) — يدعم أكثر من فائز */
+function winnerOf(room, user) {
+  const list = room.winners && room.winners.length ? room.winners : (room.winner ? [room.winner] : []);
+  return list.find((w) => matchesPerson(w, user)) || null;
 }
 
 function onChat(room, event) {
@@ -570,17 +580,19 @@ function onChat(room, event) {
   if (!user) return;
   const content = getChatText(event);
 
-  if (isWinner(room, user) && content) {
+  const speaker = content ? winnerOf(room, user) : null;
+  if (speaker) {
     const message = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: content,
       at: Date.now(),
+      from: { id: speaker.id, handle: speaker.handle, name: speaker.name, avatar: speaker.avatar },
     };
     room.winnerMessages.push(message);
     if (room.winnerMessages.length > 300) room.winnerMessages.shift();
     io.to(room.id).emit('winner:message', message);
     // نسجّلها في سجل الأحداث أيضًا حتى يظهر أثرها حتى لو كانت الشاشة مغلقة
-    pushEvent(room, 'winner', `💬 ${room.winner.name}: ${content}`, { handle: room.winner.handle });
+    pushEvent(room, 'winner', `💬 ${speaker.name}: ${content}`, { handle: speaker.handle });
   }
 
   if (!isJoinMessage(room, content)) return;
@@ -655,35 +667,63 @@ function pickWinner(room) {
     return;
   }
 
-  const winner = pool[randomInt(0, pool.length)];
-  room.winner = winner;
+  // نسحب العدد المطلوب بلا تكرار — وإن قلّ المشاركون نسحب المتاح فقط
+  const wanted = Math.max(1, Math.min(room.config.winnersCount || 1, pool.length));
+  const bag = [...pool];
+  const winners = [];
+  for (let i = 0; i < wanted; i += 1) {
+    winners.push(bag.splice(randomInt(0, bag.length), 1)[0]);
+  }
+
+  room.winners = winners;
+  room.winner = winners[0];
   room.winnerMessages = [];
 
-  room.history.unshift({ ...winner, wonAt: Date.now() });
-  if (room.history.length > 50) room.history.pop();
-  store.saveWinner(room.id, winner).catch((err) => console.error('تعذّر حفظ الفائز:', err.message));
+  const at = Date.now();
+  winners.forEach((w) => {
+    room.history.unshift({ ...w, wonAt: at });
+    store.saveWinner(room.id, w).catch((err) => console.error('تعذّر حفظ الفائز:', err.message));
+  });
+  while (room.history.length > 50) room.history.pop();
 
   if (room.config.excludeWinners) {
-    room.excluded.add(winner.id);
-    room.participants.delete(winner.id);
-    room.removedWinners = room.removedWinners.filter((p) => p.id !== winner.id);
-    room.removedWinners.push(winner);
-    if (room.removedWinners.length > 100) room.removedWinners.shift();
+    winners.forEach((w) => {
+      room.excluded.add(w.id);
+      room.participants.delete(w.id);
+      room.removedWinners = room.removedWinners.filter((p) => p.id !== w.id);
+      room.removedWinners.push(w);
+    });
+    while (room.removedWinners.length > 100) room.removedWinners.shift();
   }
 
   io.to(room.id).emit('winner', {
-    winner,
+    winner: winners[0],
+    winners,
     history: room.history,
     participants: [...room.participants.values()],
   });
-  pushEvent(room, 'winner', `الفائز: ${winner.name}${winner.handle ? ` (@${winner.handle})` : ''}`, {
-    handle: winner.handle,
-    avatar: winner.avatar,
-  });
+
+  const label = (w) => `${w.name}${w.handle ? ` (@${w.handle})` : ''}`;
+  if (winners.length === 1) {
+    pushEvent(room, 'winner', `الفائز: ${label(winners[0])}`, {
+      handle: winners[0].handle,
+      avatar: winners[0].avatar,
+    });
+  } else {
+    pushEvent(room, 'winner', `الفائزون (${winners.length}): ${winners.map(label).join(' · ')}`, {
+      handle: winners[0].handle,
+      avatar: winners[0].avatar,
+    });
+  }
+
+  if (wanted < (room.config.winnersCount || 1)) {
+    pushEvent(room, 'system', `المطلوب ${room.config.winnersCount} فائزين والمتاح ${wanted} فقط.`);
+  }
 }
 
 function backToList(room) {
   room.winner = null;
+  room.winners = [];
   room.winnerMessages = [];
   io.to(room.id).emit('winner:clear');
 }
