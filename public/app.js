@@ -4,21 +4,37 @@ const $ = (id) => document.getElementById(id);
 
 /* ═══════════ الغرفة — تعزل بيانات كل مستخدم عن غيره ═══════════ */
 
+const cleanRoom = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+
+/* الرمز يُحفظ في مكانين (التخزين المحلي + كوكي سنة كاملة) حتى يبقى
+   رابط الشاشة ثابتًا لصاحبه مهما أغلق المتصفح أو أعاد فتح الموقع */
+function readRoomCookie() {
+  const hit = document.cookie.split('; ').find((c) => c.startsWith('draw_room='));
+  return hit ? cleanRoom(decodeURIComponent(hit.slice(10))) : '';
+}
+function writeRoomCookie(id) {
+  document.cookie = `draw_room=${encodeURIComponent(id)}; path=/; max-age=34560000; samesite=lax`;
+}
+function rememberRoom(id) {
+  try { localStorage.setItem('draw:room', id); } catch (_) { /* التخزين غير متاح */ }
+  writeRoomCookie(id);
+}
+
 function resolveRoom() {
   const fromUrl = new URLSearchParams(location.search).get('room');
-  const clean = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
 
-  let id = clean(fromUrl);
+  let id = cleanRoom(fromUrl);
   if (!id) {
-    try { id = clean(localStorage.getItem('draw:room')); } catch (_) { id = ''; }
+    try { id = cleanRoom(localStorage.getItem('draw:room')); } catch (_) { id = ''; }
   }
+  if (!id) id = readRoomCookie();
   if (!id) {
     const bytes = new Uint8Array(5);
     (window.crypto || window.msCrypto).getRandomValues(bytes);
     id = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
-  try { localStorage.setItem('draw:room', id); } catch (_) { /* التخزين غير متاح */ }
+  rememberRoom(id);
 
   if (fromUrl !== id) {
     const url = new URL(location.href);
@@ -26,6 +42,17 @@ function resolveRoom() {
     history.replaceState(null, '', url);
   }
   return id;
+}
+
+/* تغيير الرمز يدويًا — يفيد لاسترجاع نفس الرابط على جهاز أو متصفح آخر */
+function switchRoom(raw) {
+  const id = cleanRoom(raw);
+  if (!id) { toast('اكتب رمزًا صحيحًا (حروف إنجليزية وأرقام)'); return; }
+  if (id === ROOM) { toast('هذا هو رمزك الحالي'); return; }
+  rememberRoom(id);
+  const url = new URL(location.href);
+  url.searchParams.set('room', id);
+  location.href = url.toString();
 }
 
 const ROOM = resolveRoom();
@@ -581,6 +608,8 @@ function paintScreenLink() {
   const url = screenUrl(currentScreenPage());
   $('screen-link').value = url;
   $('screens-open').setAttribute('href', url);
+  const code = $('room-code');
+  if (code && code.value !== ROOM) code.value = ROOM;
 }
 
 function showSheet(name) {
@@ -591,6 +620,16 @@ function showSheet(name) {
     tab.classList.toggle('is-on', tab.dataset.tab === name);
   });
   paintScreenLink();
+}
+
+const roomCodeInput = $('room-code');
+if (roomCodeInput) {
+  roomCodeInput.value = ROOM;
+  $('room-code-copy').addEventListener('click', () => {
+    navigator.clipboard?.writeText(ROOM).then(() => toast('انتسخ رمز شاشتك'), () => toast(ROOM));
+  });
+  $('room-code-apply').addEventListener('click', () => switchRoom(roomCodeInput.value));
+  roomCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') switchRoom(roomCodeInput.value); });
 }
 
 $('screens-tabs').addEventListener('click', (e) => {
