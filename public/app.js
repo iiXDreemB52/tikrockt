@@ -257,7 +257,7 @@ function fanfare() {
 
 function shreds() {
   if (reduceMotion) return;
-  const colors = ['#F4EEE2', '#FFC53D', '#FF4A2B', '#E7DDCA', '#CDBFA6'];
+  const colors = ['#F59E0B', '#FCD34D', '#EA580C', '#F5F5F5', '#B45309'];
   const pieces = document.createDocumentFragment();
   for (let i = 0; i < 70; i += 1) {
     const bit = document.createElement('i');
