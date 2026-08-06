@@ -56,6 +56,7 @@ function switchRoom(raw) {
 }
 
 const ROOM = resolveRoom();
+let currentWinners = [];   // فائزو السحبة الحالية
 const screenUrl = (page) => `${location.origin}/${page}?room=${ROOM}`;
 
 const el = {
@@ -87,6 +88,10 @@ const el = {
   countdownFill: $('countdown-fill'),
   btnCancel: $('btn-cancel'),
   startMode: $('start-mode'),
+  wList: $('w-list'),
+  wStamp: $('w-stamp'),
+  wEyebrow: $('w-eyebrow'),
+  threadTitle: $('thread-title'),
   accountPill: $('account-pill'),
   accountName: $('account-name'),
   accountForm: $('account-form'),
@@ -327,12 +332,16 @@ function hideCountdown() {
 
 /* ═══════════ حركة السحب ═══════════ */
 
-function runDraw(winner) {
+function runDraw(winner, winners) {
+  const list = (winners && winners.length) ? winners : [winner];
   const nodes = [...el.tickets.querySelectorAll('.stub')];
-  const target = nodes.find((n) => n.dataset.id === winner.id);
+  const target = nodes.find((n) => n.dataset.id === list[0].id);
+  const targets = list
+    .map((w) => nodes.find((n) => n.dataset.id === w.id))
+    .filter(Boolean);
 
   if (reduceMotion || nodes.length < 2 || !target) {
-    finishDraw(winner, target);
+    finishDraw(list, targets);
     return;
   }
 
@@ -354,7 +363,7 @@ function runDraw(winner) {
 
     if (step > totalSteps) {
       if (prevNode) prevNode.classList.remove('is-spot');
-      finishDraw(winner, target);
+      finishDraw(list, targets);
       return;
     }
     const progress = step / totalSteps;
@@ -364,36 +373,106 @@ function runDraw(winner) {
   hop();
 }
 
-function finishDraw(winner, target) {
+function finishDraw(list, targets) {
   el.btnDraw.classList.remove('is-drawing');
   fanfare();
 
-  if (target) {
-    target.classList.add('is-spot', 'is-torn');
-    setTimeout(() => showWinner(winner), reduceMotion ? 0 : 620);
+  const winners = Array.isArray(list) ? list : [list];
+  const marks = (targets || []).filter(Boolean);
+
+  if (marks.length) {
+    marks.forEach((node) => node.classList.add('is-spot', 'is-torn'));
+    setTimeout(() => showWinner(winners), reduceMotion ? 0 : 620);
   } else {
-    showWinner(winner);
+    showWinner(winners);
   }
 }
 
-function showWinner(winner) {
+/* يعرض فائزًا واحدًا ببطاقة كبيرة، أو عدة فائزين بقائمة مرقّمة */
+function showWinner(winnerOrList, list) {
   drawing = false;
   if (pendingParticipants) {
     participants = pendingParticipants;
     pendingParticipants = null;
     renderAll();
   }
-  el.wName.textContent = winner.name;
-  el.wHandle.textContent = winner.handle ? `@${winner.handle}` : '';
-  paintAvatar(el.wAvatar, winner);
-  if (winner.handle) {
-    // فتح صفحة حساب الفائز على تيك توك؛ من هناك تقدر تضغط "رسالة" داخل تطبيقك
-    el.btnProfile.href = `https://www.tiktok.com/@${encodeURIComponent(winner.handle)}`;
+
+  const winners = Array.isArray(winnerOrList)
+    ? winnerOrList
+    : (Array.isArray(list) && list.length ? list : [winnerOrList].filter(Boolean));
+  if (!winners.length) return;
+
+  currentWinners = winners;
+  const many = winners.length > 1;
+  const first = winners[0];
+
+  el.wStamp.textContent = many ? `${arabicNumber(winners.length)} فائزين` : 'فائز';
+  el.wEyebrow.textContent = many ? 'التذاكر الرابحة' : 'تذكرة رابحة';
+  el.threadTitle.textContent = many ? 'رسائل الفائزين في الشات' : 'رسائل الفائز في الشات';
+  el.threadWait.textContent = many
+    ? 'بانتظار أول رسالة من الفائزين…'
+    : 'بانتظار أول رسالة من الفائز…';
+
+  // بطاقة كبيرة لفائز واحد
+  el.wName.parentElement.parentElement.classList.toggle('is-hidden', many);
+  el.wName.textContent = first.name;
+  el.wHandle.textContent = first.handle ? `@${first.handle}` : '';
+  paintAvatar(el.wAvatar, first);
+
+  // قائمة مرقّمة لعدة فائزين
+  el.wList.replaceChildren();
+  el.wList.classList.toggle('is-hidden', !many);
+  if (many) {
+    winners.forEach((w, i) => {
+      const row = document.createElement('li');
+      row.className = 'wlist__row';
+
+      const rank = document.createElement('span');
+      rank.className = 'wlist__rank';
+      rank.textContent = arabicNumber(i + 1);
+
+      const face = document.createElement('div');
+      face.className = 'wlist__face';
+      paintAvatar(face, w);
+
+      const meta = document.createElement('div');
+      meta.className = 'wlist__meta';
+      const name = document.createElement('span');
+      name.className = 'wlist__name';
+      name.textContent = w.name;
+      meta.appendChild(name);
+      if (w.handle) {
+        const handle = document.createElement('span');
+        handle.className = 'wlist__handle';
+        handle.textContent = `@${w.handle}`;
+        meta.appendChild(handle);
+      }
+
+      row.append(rank, face, meta);
+
+      if (w.handle) {
+        const link = document.createElement('a');
+        link.className = 'wlist__open';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.href = `https://www.tiktok.com/@${encodeURIComponent(w.handle)}`;
+        link.textContent = 'فتح الحساب';
+        row.appendChild(link);
+      }
+
+      el.wList.appendChild(row);
+    });
+  }
+
+  // زر «فتح حساب الفائز» يظهر لفائز واحد فقط (القائمة فيها رابط لكل واحد)
+  if (!many && first.handle) {
+    el.btnProfile.href = `https://www.tiktok.com/@${encodeURIComponent(first.handle)}`;
     el.btnProfile.classList.remove('is-hidden');
   } else {
     el.btnProfile.removeAttribute('href');
     el.btnProfile.classList.add('is-hidden');
   }
+
   el.thread.replaceChildren();
   el.threadWait.classList.remove('is-hidden');
   el.stageMain.hidden = true;
@@ -414,7 +493,15 @@ function addBubble(message) {
   el.threadWait.classList.add('is-hidden');
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = message.text;
+
+  if (currentWinners.length > 1 && message.from && message.from.name) {
+    const who = document.createElement('span');
+    who.className = 'bubble__who';
+    who.textContent = message.from.name;
+    bubble.appendChild(who);
+  }
+
+  bubble.appendChild(document.createTextNode(message.text));
   const time = document.createElement('span');
   time.className = 'bubble__time';
   time.textContent = new Date(message.at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
@@ -506,6 +593,7 @@ const setFields = {
   match: $('set-match'),
   max: $('set-max'),
   countdown: $('set-countdown'),
+  winners: $('set-winners'),
   autodraw: $('set-autodraw'),
   roundonly: $('set-roundonly'),
   stopfull: $('set-stopfull'),
@@ -519,6 +607,7 @@ function paintSettings() {
   setFields.match.value = config.matchMode;
   setFields.max.value = config.maxParticipants;
   setFields.countdown.value = config.countdownSeconds;
+  setFields.winners.value = config.winnersCount || 1;
   setFields.autodraw.checked = config.autoDraw;
   setFields.roundonly.checked = config.joinDuringRoundOnly;
   setFields.stopfull.checked = config.stopWhenFull;
@@ -554,6 +643,7 @@ $('settings-save').addEventListener('click', () => {
     matchMode: setFields.match.value,
     maxParticipants: setFields.max.value,
     countdownSeconds: setFields.countdown.value,
+    winnersCount: Math.min(Math.max(parseInt(setFields.winners.value, 10) || 1, 1), 50),
     autoDraw: setFields.autodraw.checked,
     joinDuringRoundOnly: setFields.roundonly.checked,
     stopWhenFull: setFields.stopfull.checked,
@@ -768,8 +858,8 @@ function initializeSocket() {
 
     if (s.round && s.round.active) showCountdown(s.round); else hideCountdown();
 
-    if (s.winner) {
-      showWinner(s.winner);
+    if (s.winner || (s.winners && s.winners.length)) {
+      showWinner(s.winners && s.winners.length ? s.winners : [s.winner]);
       (s.winnerMessages || []).forEach(addBubble);
     } else {
       showList();
@@ -805,11 +895,11 @@ function initializeSocket() {
   });
   socket.on('round:end', hideCountdown);
 
-  socket.on('winner', ({ winner, participants: list, history }) => {
+  socket.on('winner', ({ winner, winners, participants: list, history }) => {
     drawing = true;
     pendingParticipants = list;
     renderRecent(history || []);
-    runDraw(winner);
+    runDraw(winner, winners);
   });
 
   socket.on('draw:empty', () => {
@@ -818,7 +908,7 @@ function initializeSocket() {
     toast('لا يوجد مشاركون للسحب');
   });
 
-  socket.on('winner:clear', showList);
+  socket.on('winner:clear', () => { currentWinners = []; showList(); });
   socket.on('winner:message', addBubble);
 
   socket.on('overlay', ({ screen, settings }) => {
