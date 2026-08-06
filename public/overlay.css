@@ -223,11 +223,13 @@ body[data-bg="dark"] { --bg: rgba(15, 15, 15, .9); }
 .ticket { border-radius: 12px; }
 .ticket__perf { border-inline-start-color: var(--paper-3); }
 
+/* ختم «فائز» — أحمر فاتح */
 .stamp {
-  border-color: var(--signal);
-  color: var(--signal);
+  border-color: #FF8A8A;
+  background: rgba(255, 138, 138, .16);
+  color: #FF9E9E;
   mix-blend-mode: normal;
-  text-shadow: 0 0 14px rgba(239, 68, 68, .45);
+  text-shadow: 0 0 14px rgba(255, 138, 138, .45);
 }
 
 /* أسماء وأرقام بلون الهوية */
