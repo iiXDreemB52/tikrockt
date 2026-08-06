@@ -135,76 +135,61 @@ button { cursor: pointer; }
 
 .account { justify-self: center; min-width: 0; }
 
-.account__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  height: 36px;
-  max-width: min(68vw, 380px);
-  padding: 0 8px 0 14px;
+/* شريط دائم: زر «ربط» على اليمين، ثم @، ثم حقل الكتابة */
+.account__bar {
+  display: flex;
+  /* الصفحة RTL، فأول عنصر بالترتيب في الـ HTML (زر ربط) يظهر أقصى اليمين تلقائيًا */
+  align-items: stretch;
+  height: 38px;
+  max-width: min(70vw, 360px);
   border: 1px solid var(--edge-2);
   border-radius: var(--r-2);
   background: var(--ink-3);
-  color: var(--paper);
+  overflow: hidden;
   transition: border-color .15s, background .15s;
 }
-.account__pill:hover { border-color: var(--gold); background: #17424b; }
-.account__pill.is-empty { border-color: var(--gold); border-style: dashed; background: transparent; color: var(--gold); }
+.account__bar:focus-within { border-color: var(--gold); background: #201804; }
+.account__bar:not(.is-linked) { border-style: dashed; border-color: var(--gold); }
 
-.account__name {
-  font-family: var(--mono);
-  font-size: 14px;
+.account__connect {
+  flex: none;
+  border: 0;
+  padding: 0 16px;
+  background: var(--gold);
+  color: var(--brass);
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: .01em;
-  direction: ltr;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  transition: filter .15s;
 }
-.account__edit {
+.account__connect:hover { filter: brightness(1.08); }
+.account__connect:active { filter: brightness(.95); }
+
+.account__at {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding-inline-start: 9px;
-  border-inline-start: 1px solid var(--edge-2);
-  font-size: 11.5px;
-  color: var(--mute-2);
+  padding-inline: 10px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mute);
 }
-.account__pill:hover .account__edit { color: var(--gold); }
-.account__edit svg { width: 12px; height: 12px; }
 
-.account__form {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 6px 0 12px;
-  border: 1px solid var(--gold);
-  border-radius: var(--r-2);
-  background: var(--ink-3);
-}
-.account__at { font-family: var(--mono); font-size: 13px; color: var(--mute); }
 .account__input {
+  flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   outline: none;
-  width: min(44vw, 220px);
+  padding-inline: 6px 12px;
   font-family: var(--mono);
   font-size: 14px;
+  font-weight: 700;
+  color: var(--paper);
   direction: ltr;
   text-align: left;
 }
-.account__save, .account__cancel {
-  border: 0;
-  border-radius: var(--r-1);
-  height: 26px;
-  padding: 0 13px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.account__save { background: var(--gold); color: var(--brass); }
-.account__cancel { background: transparent; color: var(--mute-2); }
-.account__cancel:hover { color: var(--signal); }
+.account__input::placeholder { color: var(--mute-2); font-weight: 500; }
 
 /* ═══ حالة الاتصال ═══ */
 
@@ -986,7 +971,7 @@ body.join-closed .hint__word { background: var(--mute-2); color: var(--ink); }
 @media (max-width: 620px) {
   .topbar { height: auto; padding: 10px 12px; grid-template-columns: 1fr; justify-items: center; gap: 9px; }
   .topbar__side--end { justify-content: center; }
-  .account__pill { max-width: 90vw; }
+  .account__bar { max-width: 90vw; }
   .board__grid { grid-template-columns: 1fr; }
   .console { grid-template-columns: 1fr; }
   .launch-btn__label { font-size: 28px; }
