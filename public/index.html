@@ -136,18 +136,20 @@
 <main class="winner" id="stage-winner" hidden>
   <div class="winner__shreds" id="confetti" aria-hidden="true"></div>
 
-  <div class="winner__card">
+  <div class="winner__card" id="winner-card">
     <span class="winner__perf" aria-hidden="true"></span>
-    <span class="winner__stamp">فائز</span>
+    <span class="winner__stamp" id="w-stamp">فائز</span>
 
     <div class="winner__id">
       <div class="winner__avatar" id="w-avatar"></div>
       <div>
-        <p class="winner__eyebrow">تذكرة رابحة</p>
+        <p class="winner__eyebrow" id="w-eyebrow">تذكرة رابحة</p>
         <h2 class="winner__name" id="w-name">—</h2>
         <p class="winner__handle" id="w-handle"></p>
       </div>
     </div>
+
+    <ol class="wlist is-hidden" id="w-list"></ol>
 
     <div class="winner__actions">
       <button class="btn btn--go" id="btn-redraw">سحب جديد</button>
@@ -158,7 +160,7 @@
 
   <section class="thread">
     <header class="thread__head">
-      <span>رسائل الفائز في الشات</span>
+      <span id="thread-title">رسائل الفائز في الشات</span>
       <span class="thread__live"><i></i>مباشر</span>
     </header>
     <div class="thread__body" id="thread"></div>
@@ -244,6 +246,12 @@
         <label for="set-countdown">مدة العد التنازلي (ثانية)</label>
         <input id="set-countdown" type="number" min="0" max="900" step="1">
         <small>تظهر تحت زر «ابدأ». صفر = سحب فوري.</small>
+      </div>
+
+      <div class="field">
+        <p class="label">عدد الفائزين</p>
+        <input id="set-winners" type="number" min="1" max="50" step="1">
+        <small>كم شخصًا يُسحب في المرة الواحدة. الكل يقدر يكتب في الشات وتظهر رسائلهم.</small>
       </div>
 
       <div class="field field--wide">
