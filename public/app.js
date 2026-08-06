@@ -92,11 +92,8 @@ const el = {
   wStamp: $('w-stamp'),
   wEyebrow: $('w-eyebrow'),
   threadTitle: $('thread-title'),
-  accountPill: $('account-pill'),
-  accountName: $('account-name'),
   accountForm: $('account-form'),
   accountInput: $('account-input'),
-  accountCancel: $('account-cancel'),
   conn: $('conn-badge'),
   connText: $('conn-text'),
   recentList: $('recent-list'),
@@ -556,33 +553,22 @@ function restoreAccount() {
 }
 
 function paintAccount() {
-  el.accountName.textContent = config.username ? `@${config.username}` : 'أضف حسابك';
-  el.accountPill.classList.toggle('is-empty', !config.username);
+  el.accountForm.classList.toggle('is-linked', Boolean(config.username));
+  el.accountInput.placeholder = 'اسم حسابك في تيك توك';
+  // لا نكتب فوق ما يكتبه المستخدم الآن إن كان الحقل مفعّلًا
+  if (document.activeElement !== el.accountInput) {
+    el.accountInput.value = config.username || lastAccount() || '';
+  }
   if (config.username) rememberAccount(config.username);
 }
 
-function openAccountEditor() {
-  el.accountInput.value = config.username || lastAccount() || '';
-  el.accountPill.classList.add('is-hidden');
-  el.accountForm.classList.remove('is-hidden');
-  el.accountInput.focus();
-  el.accountInput.select();
-}
-
-function closeAccountEditor() {
-  el.accountForm.classList.add('is-hidden');
-  el.accountPill.classList.remove('is-hidden');
-}
-
-el.accountPill.addEventListener('click', openAccountEditor);
-el.accountCancel.addEventListener('click', closeAccountEditor);
 el.accountForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const username = el.accountInput.value.trim().replace(/^@/, '');
   if (!username) { toast('اكتب اسم الحساب أولًا'); return; }
   rememberAccount(username);
   socket.emit('account:set', { username });
-  closeAccountEditor();
+  el.accountInput.blur();
   toast(`جارٍ الربط بـ @${username}…`);
 });
 
@@ -954,7 +940,7 @@ el.btnBack.addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName);
   if (typing) {
-    if (e.key === 'Escape') closeAccountEditor();
+    if (e.key === 'Escape') e.target.blur();
     return;
   }
   if (e.code === 'Space') { e.preventDefault(); if (!el.btnDraw.disabled) requestStart(); }
