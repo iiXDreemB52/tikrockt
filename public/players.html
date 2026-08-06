@@ -224,6 +224,11 @@
     inset-inline-end: 20px;
     font-size: calc(var(--size) * 1);
     animation: stamp-in .5s cubic-bezier(.2, 1.4, .3, 1) .34s both;
+    /* أحمر فاتح */
+    border-color: #FF8A8A;
+    background: rgba(255, 138, 138, .16);
+    color: #FF9E9E;
+    text-shadow: 0 0 12px rgba(255, 138, 138, .45);
   }
 
   @keyframes card-in {
@@ -237,18 +242,59 @@
     position: fixed;
     inset-block-end: 26px;
     inset-inline-start: 26px;
-    z-index: 6;
+    z-index: 9;                     /* فوق بطاقة الفائز حتى لا تُحجب */
     display: none;
+    flex-direction: column;
+    gap: 6px;
+    width: min(440px, 92vw);
+    max-height: 42vh;
+  }
+  body.is-revealing .winner-chat { display: flex; }
+  body.no-winner-chat .winner-chat { display: none !important; }
+
+  .winner-chat__head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 5px 14px 6px;
+    border-radius: 999px;
+    border: 1.5px solid var(--paper-3);
+    background: var(--paper);
+    box-shadow: var(--lift);
+    font-size: calc(var(--size) * .46);
+    font-weight: 900;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+  .winner-chat__head i {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--live); box-shadow: 0 0 8px var(--live);
+    animation: wc-blink 1.4s infinite;
+  }
+  @keyframes wc-blink { 50% { opacity: .25; } }
+
+  .winner-chat__list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
     flex-direction: column-reverse;
     gap: 6px;
-    width: min(420px, 90vw);
-    max-height: 34vh;
     overflow: hidden;
     -webkit-mask-image: linear-gradient(to top, #000 78%, transparent 100%);
     mask-image: linear-gradient(to top, #000 78%, transparent 100%);
   }
-  body.is-revealing .winner-chat { display: flex; }
-  body.no-winner-chat .winner-chat { display: none; }
+  .winner-chat__wait {
+    align-self: flex-start;
+    padding: 6px 13px 7px;
+    border-radius: 8px;
+    background: var(--paper);
+    box-shadow: var(--lift);
+    font-size: calc(var(--size) * .42);
+    font-weight: 700;
+    color: var(--graphite-2);
+  }
 
   .wbubble {
     align-self: flex-start;
@@ -259,8 +305,10 @@
     background: var(--paper);
     filter: drop-shadow(var(--lift));
     font-size: calc(var(--size) * .5);
-    font-weight: 500;
-    line-height: 1.3;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--graphite);
+    border: 1.5px solid var(--paper-3);
     overflow-wrap: anywhere;
     animation: pop-in .24s cubic-bezier(.2, 1, .3, 1.3) both;
   }
@@ -299,7 +347,11 @@
   </div>
 </div>
 
-<div class="winner-chat" id="winner-chat"></div>
+<div class="winner-chat" id="winner-chat">
+  <div class="winner-chat__head"><i></i><span>رسائل الفائز</span></div>
+  <div class="winner-chat__list" id="winner-chat-list"></div>
+  <div class="winner-chat__wait" id="winner-chat-wait">في انتظار رسالة الفائز…</div>
+</div>
 
 <div class="shreds" id="shreds" aria-hidden="true"></div>
 <button class="audio-note" id="audio-note" hidden>فعّل الصوت</button>
@@ -376,7 +428,9 @@ const countEl = document.getElementById('count');
 const timerEl = document.getElementById('timer');
 const timerNum = document.getElementById('timer-num');
 const shredsEl = document.getElementById('shreds');
-const winnerChatEl = document.getElementById('winner-chat');
+const winnerChatEl   = document.getElementById('winner-chat');
+const winnerChatList = document.getElementById('winner-chat-list');
+const winnerChatWait = document.getElementById('winner-chat-wait');
 
 let participants = [];
 let pending = null;
@@ -515,6 +569,7 @@ function addParticipant(p) {
 function runDraw(winner) {
   drawing = true;
   drawSeq += 1;
+  resetWinnerChat();
   const seq = drawSeq; // بصمة هذا السحب بالذات
 
   const nodes = [...rosterEl.querySelectorAll('.chip:not(.chip--more)')];
@@ -575,15 +630,18 @@ function runDraw(winner) {
 /* ═══ دردشة الفائز ═══ */
 
 function addWinnerBubble(message) {
+  if (!message || !message.text) return;
   const bubble = document.createElement('div');
   bubble.className = 'wbubble';
   bubble.textContent = message.text;
-  winnerChatEl.appendChild(bubble);
-  while (winnerChatEl.childElementCount > 40) winnerChatEl.firstElementChild.remove();
+  winnerChatList.appendChild(bubble);
+  while (winnerChatList.childElementCount > 40) winnerChatList.firstElementChild.remove();
+  winnerChatWait.hidden = true;
 }
 
 function resetWinnerChat() {
-  winnerChatEl.replaceChildren();
+  winnerChatList.replaceChildren();
+  winnerChatWait.hidden = false;
 }
 
 function paintWinner(winner) {
@@ -597,7 +655,6 @@ function reveal(winner, seq) {
   if (seq !== undefined && seq !== drawSeq) return; // نتيجة سحب قديم لاغية
   drawing = false;
   paintWinner(winner);
-  resetWinnerChat();
   document.body.classList.add('is-revealing');
 
   // نؤجّل الصوت والكونفيتي حتى تاخذ بطاقة الفائز رسمتها الأولى، ونفرّق
